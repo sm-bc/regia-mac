@@ -51,10 +51,10 @@ final class Misuratore {
 
         leggiBatteria(&c)
         switch ProcessInfo.processInfo.thermalState {
-        case .nominal: (c.termico, c.termicoLivello) = ("normale", 0)
-        case .fair: (c.termico, c.termicoLivello) = ("tiepido", 1)
-        case .serious: (c.termico, c.termicoLivello) = ("caldo: rallenta", 2)
-        case .critical: (c.termico, c.termicoLivello) = ("critico", 3)
+        case .nominal: (c.termico, c.termicoLivello) = (L("normal", "normale"), 0)
+        case .fair: (c.termico, c.termicoLivello) = (L("warm", "tiepido"), 1)
+        case .serious: (c.termico, c.termicoLivello) = (L("hot: slowing down", "caldo: rallenta"), 2)
+        case .critical: (c.termico, c.termicoLivello) = (L("critical", "critico"), 3)
         @unknown default: (c.termico, c.termicoLivello) = ("?", 0)
         }
         return c
@@ -168,5 +168,5 @@ final class Misuratore {
 func formatoVelocita(_ b: Double) -> String {
     if b < 1024 { return "0 KB/s" }
     if b < 1_048_576 { return String(format: "%.0f KB/s", b / 1024) }
-    return String(format: "%.1f MB/s", b / 1_048_576).replacingOccurrences(of: ".", with: ",")
+    return decimale(b / 1_048_576) + " MB/s"
 }

@@ -2,13 +2,22 @@ import Foundation
 
 // MARK: - Comandi di sistema
 
+/// Stato attuale di un ritocco sul Mac.
+struct StatoRitocco {
+    let testo: String
+    let attivo: Bool
+    /// true = come su un Mac appena installato (chiave assente o valore di serie dell'energia).
+    let predefinito: Bool
+}
+
 struct Esito { let codice: Int32; let uscita: String; let errore: String; var ok: Bool { codice == 0 } }
 
 @discardableResult
-func esegui(_ programma: String, _ argomenti: [String]) -> Esito {
+func esegui(_ programma: String, _ argomenti: [String], ambiente: [String: String]? = nil) -> Esito {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: programma)
     p.arguments = argomenti
+    if let a = ambiente { p.environment = ProcessInfo.processInfo.environment.merging(a) { $1 } }
     let out = Pipe(), err = Pipe()
     p.standardOutput = out
     p.standardError = err
@@ -127,7 +136,7 @@ final class Motore {
 
     func scriviPreferenza(_ dominio: String, _ chiave: String, _ argomenti: [String]) throws {
         let r = esegui("/usr/bin/defaults", ["write", dominioEffettivo(dominio), chiave] + argomenti)
-        if !r.ok { throw ErroreRegia.messaggio("Non riesco a scrivere \(dominio) \(chiave): \(r.errore)") }
+        if !r.ok { throw ErroreRegia.messaggio(L("Can't write \(dominio) \(chiave): \(r.errore)", "Non riesco a scrivere \(dominio) \(chiave): \(r.errore)")) }
     }
 
     func cancellaPreferenza(_ dominio: String, _ chiave: String) {
@@ -177,30 +186,32 @@ final class Motore {
         let script = "do shell script \"\(shell)\" with administrator privileges"
         let r = esegui("/usr/bin/osascript", ["-e", script])
         if !r.ok {
-            if r.errore.contains("-128") { throw ErroreRegia.messaggio("Hai annullato la richiesta della password: impostazioni energia non cambiate.") }
-            throw ErroreRegia.messaggio("Impostazioni energia non applicate: \(r.errore)")
+            if r.errore.contains("-128") { throw ErroreRegia.messaggio(L("You cancelled the password request: energy settings not changed.", "Hai annullato la richiesta della password: impostazioni energia non cambiate.")) }
+            throw ErroreRegia.messaggio(L("Energy settings not applied: \(r.errore)", "Impostazioni energia non applicate: \(r.errore)"))
         }
     }
 
     // MARK: Stato dei ritocchi
 
-    func statoAttuale(_ t: Ritocco, energia: [Ambito: [String: Int]]? = nil) -> (testo: String, attivo: Bool) {
+    func statoAttuale(_ t: Ritocco, energia: [Ambito: [String: Int]]? = nil) -> StatoRitocco {
         switch t.azione {
         case .preferenza(let dom, let chiave, let valore):
             let letto = leggiPreferenza(dom, chiave).valore
             let testo: String
             if let l = letto {
-                if case .bool = valore { testo = ["1", "true", "yes"].contains(l.lowercased()) ? "sì" : "no" }
+                if case .bool = valore { testo = ["1", "true", "yes"].contains(l.lowercased()) ? L("yes", "sì") : "no" }
                 else if case .float = valore, let d = Double(l) { testo = Valore.float((d * 100).rounded() / 100).testo }
                 else { testo = l }
-            } else { testo = "predefinito di macOS" }
-            return (testo, valore.coincide(con: letto))
+            } else { testo = Catalogo.testoPredefinito }
+            return StatoRitocco(testo: testo, attivo: valore.coincide(con: letto), predefinito: letto == nil)
         case .energia(let a, let chiave, let valore):
             let e = energia ?? leggiEnergia()
             let v = e[a]?[chiave]
+            let testo = Catalogo.testoEnergia(chiave: chiave, valore: v)
+            let predefinito = t.predefinitoEnergia.map { $0 == v } ?? false
             // Per lo spegnimento dello schermo va bene anche un tempo più breve di quello proposto.
-            if chiave == "displaysleep", let v, v > 0, v <= valore { return (Catalogo.testoEnergia(chiave: chiave, valore: v), true) }
-            return (Catalogo.testoEnergia(chiave: chiave, valore: v), v == valore)
+            if chiave == "displaysleep", let v, v > 0, v <= valore { return StatoRitocco(testo: testo, attivo: true, predefinito: predefinito) }
+            return StatoRitocco(testo: testo, attivo: v == valore, predefinito: predefinito)
         }
     }
 
@@ -220,11 +231,11 @@ final class Motore {
             guard case .preferenza(let dom, let chiave, let valore) = t.azione else { continue }
             let prima = leggiPreferenza(dom, chiave)
             if let tipo = prima.tipo, !["boolean", "integer", "float", "string"].contains(tipo) {
-                errori.append("\(t.titolo): valore attuale di tipo \(tipo), lo lascio com'è.")
+                errori.append(L("\(t.titolo): current value is of type \(tipo), leaving it as it is.", "\(t.titolo): valore attuale di tipo \(tipo), lo lascio com'è."))
                 continue
             }
             do {
-                let nuovo = predefinito ? "predefinito di macOS" : valore.testo
+                let nuovo = predefinito ? Catalogo.testoPredefinito : valore.testo
                 if predefinito {
                     guard prima.valore != nil else { continue }
                     cancellaPreferenza(dom, chiave)
@@ -238,7 +249,7 @@ final class Motore {
                 }
                 applicati += 1
                 if let r = t.riavvia { daRiavviare.insert(r) }
-                scriviRegistro("\(predefinito ? "Predefinito" : "Applicato"): \(t.titolo) (prima: \(prima.valore ?? "predefinito"), ora: \(nuovo))")
+                scriviRegistro(L("\(predefinito ? "Default" : "Applied"): \(t.titolo) (before: \(prima.valore ?? "default"), now: \(nuovo))", "\(predefinito ? "Predefinito" : "Applicato"): \(t.titolo) (prima: \(prima.valore ?? "predefinito"), ora: \(nuovo))"))
             } catch {
                 errori.append(error.localizedDescription)
             }
@@ -261,11 +272,11 @@ final class Motore {
                                                   nuovo: Catalogo.testoEnergia(chiave: k, valore: v)))
                     }
                     applicati += 1
-                    scriviRegistro("Applicato: \(t.titolo) (prima: \(Catalogo.testoEnergia(chiave: k, valore: prima[a]?[k])))")
+                    scriviRegistro(L("Applied", "Applicato") + ": \(t.titolo) (" + L("before", "prima") + ": \(Catalogo.testoEnergia(chiave: k, valore: prima[a]?[k])))")
                 }
             } catch {
                 errori.append(error.localizedDescription)
-                scriviRegistro("Errore energia: \(error.localizedDescription)")
+                scriviRegistro(L("Energy error", "Errore energia") + ": \(error.localizedDescription)")
             }
         }
 
@@ -291,7 +302,7 @@ final class Motore {
         for d in domini {
             esegui("/usr/bin/defaults", ["export", dominioEffettivo(d), dir.appendingPathComponent("\(d).plist").path])
         }
-        scriviRegistro("Backup delle impostazioni in \(dir.path)")
+        scriviRegistro(L("Settings backup in", "Backup delle impostazioni in") + " \(dir.path)")
     }
 
     // MARK: Annulla
@@ -322,7 +333,7 @@ final class Motore {
         }
         modifiche.removeAll { $0.id == m.id }
         try salvaModifiche()
-        scriviRegistro("Annullato: \(m.titolo)")
+        scriviRegistro(L("Undone", "Annullato") + ": \(m.titolo)")
     }
 
     /// Riporta tutto com'era, dall'ultima modifica alla prima. Le impostazioni energia
@@ -337,7 +348,7 @@ final class Motore {
             }
             do {
                 try applicaEnergia(comandi)
-                for m in energia { scriviRegistro("Annullato: \(m.titolo)") }
+                for m in energia { scriviRegistro(L("Undone", "Annullato") + ": \(m.titolo)") }
                 modifiche.removeAll { $0.tipo == .energia }
                 try? salvaModifiche()
             } catch { errori.append(error.localizedDescription) }
@@ -345,7 +356,7 @@ final class Motore {
         for m in modifiche.reversed() where m.tipo != .energia {
             do { try annulla(m) } catch { errori.append("\(m.titolo): \(error.localizedDescription)") }
         }
-        scriviRegistro(errori.isEmpty ? "Annulla tutto: completato." : "Annulla tutto: \(errori.count) errori.")
+        scriviRegistro(errori.isEmpty ? L("Undo all: completed.", "Annulla tutto: completato.") : L("Undo all: \(errori.count) errors.", "Annulla tutto: \(errori.count) errori."))
         return errori
     }
 
@@ -386,17 +397,17 @@ final class Motore {
         if fm.fileExists(atPath: destinazione.path) { try fm.removeItem(at: destinazione) }
         if !prova { esegui("/bin/launchctl", ["bootout", "gui/\(getuid())", e.file.path]) }
         try fm.moveItem(at: e.file, to: destinazione)
-        modifiche.append(Modifica(tipo: .avvio, ritoccoID: "avvio.\(e.file.lastPathComponent)", titolo: "Avvio: \(e.nome)",
-                                  percorsoOriginale: e.file.path, percorsoSalvato: destinazione.path, nuovo: "disattivato"))
+        modifiche.append(Modifica(tipo: .avvio, ritoccoID: "avvio.\(e.file.lastPathComponent)", titolo: L("Startup", "Avvio") + ": \(e.nome)",
+                                  percorsoOriginale: e.file.path, percorsoSalvato: destinazione.path, nuovo: L("disabled", "disattivato")))
         try salvaModifiche()
-        scriviRegistro("Disattivato all'avvio: \(e.nome) (file spostato in \(cartellaDisattivati.path))")
+        scriviRegistro(L("Disabled at startup: \(e.nome) (file moved to \(cartellaDisattivati.path))", "Disattivato all'avvio: \(e.nome) (file spostato in \(cartellaDisattivati.path))"))
     }
 
     private func riattivaAvvio(_ m: Modifica) throws {
         guard let o = m.percorsoOriginale, let s = m.percorsoSalvato else { return }
         let fm = FileManager.default
         if fm.fileExists(atPath: s) {
-            if fm.fileExists(atPath: o) { throw ErroreRegia.messaggio("Al suo posto c'è già un file: \(o)") }
+            if fm.fileExists(atPath: o) { throw ErroreRegia.messaggio(L("There is already a file in its place: \(o)", "Al suo posto c'è già un file: \(o)")) }
             try fm.createDirectory(at: URL(fileURLWithPath: o).deletingLastPathComponent(), withIntermediateDirectories: true)
             try fm.moveItem(atPath: s, toPath: o)
         }
@@ -415,10 +426,10 @@ final class Motore {
         let destinazione = dir.appendingPathComponent("\(UUID().uuidString.prefix(6))-\(r.percorso.lastPathComponent)")
         if r.tipo == .avvio && !prova { esegui("/bin/launchctl", ["bootout", "gui/\(getuid())", r.percorso.path]) }
         try fm.moveItem(at: r.percorso, to: destinazione)
-        modifiche.append(Modifica(tipo: .residuo, ritoccoID: "residuo.\(r.percorso.path)", titolo: "Residuo: \(r.descrizione)",
-                                  percorsoOriginale: r.percorso.path, percorsoSalvato: destinazione.path, nuovo: "messo da parte"))
+        modifiche.append(Modifica(tipo: .residuo, ritoccoID: "residuo.\(r.percorso.path)", titolo: L("Leftover", "Residuo") + ": \(r.descrizione)",
+                                  percorsoOriginale: r.percorso.path, percorsoSalvato: destinazione.path, nuovo: L("set aside", "messo da parte")))
         try salvaModifiche()
-        scriviRegistro("Residuo messo da parte: \(r.percorso.path)")
+        scriviRegistro(L("Leftover set aside", "Residuo messo da parte") + ": \(r.percorso.path)")
     }
 
     // MARK: Profili personali
@@ -433,15 +444,15 @@ final class Motore {
     func salvaProfilo(nome: String, ritocchi: [String]) throws {
         var lista = profiliPersonali().filter { $0.nome.lowercased() != nome.lowercased() }
         lista.append(Profilo(id: "personale.\(UUID().uuidString.prefix(8))", nome: nome, icona: "person.crop.circle",
-                             descrizione: "Profilo creato da te (\(ritocchi.count) ritocchi).", ritocchi: ritocchi, personale: true))
+                             descrizione: L("Profile you created (\(ritocchi.count) tweaks).", "Profilo creato da te (\(ritocchi.count) ritocchi)."), ritocchi: ritocchi, personale: true))
         try JSONEncoder.regia.encode(lista).write(to: fileProfili, options: .atomic)
-        scriviRegistro("Salvato il profilo personale \"\(nome)\"")
+        scriviRegistro(L("Saved personal profile", "Salvato il profilo personale") + " \"\(nome)\"")
     }
 
     func eliminaProfilo(_ p: Profilo) {
         let lista = profiliPersonali().filter { $0.id != p.id }
         try? JSONEncoder.regia.encode(lista).write(to: fileProfili, options: .atomic)
-        scriviRegistro("Eliminato il profilo personale \"\(p.nome)\"")
+        scriviRegistro(L("Deleted personal profile", "Eliminato il profilo personale") + " \"\(p.nome)\"")
     }
 }
 
@@ -451,9 +462,9 @@ struct ElementoAvvio: Identifiable, Hashable {
     enum Livello: Int { case utente = 0, sistemaAgente = 1, sistemaServizio = 2
         var nome: String {
             switch self {
-            case .utente: return "Tuo account"
-            case .sistemaAgente: return "Tutti gli utenti"
-            case .sistemaServizio: return "Servizio di sistema"
+            case .utente: return L("Your account", "Tuo account")
+            case .sistemaAgente: return L("All users", "Tutti gli utenti")
+            case .sistemaServizio: return L("System service", "Servizio di sistema")
             }
         }
     }

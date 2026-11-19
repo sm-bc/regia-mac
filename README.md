@@ -5,19 +5,23 @@
 Programma gratuito per **macOS 14 o successivo** (Apple Silicon e Intel) che analizza il Mac e lo ottimizza in modo sicuro. È la versione Mac di [Regia per Windows](https://github.com/sm-bc/regia).
 
 ## Cosa fa
-- **Panoramica** con dati in tempo reale: processore, memoria, rete, disco, batteria, temperatura. Più consigli sullo stato del Mac.
-- **Profili**: Massimo, Bilanciato, Sicuro, Produttività, Grafica e design, Gaming, Efficienza. Puoi anche salvare i tuoi profili.
-- **Ritocchi** singoli per Dock, Finder, tastiera, screenshot, energia e privacy.
+- **Interfaccia in inglese o italiano**: si sceglie in basso a sinistra, nel menu Lingua o in Impostazioni (⌘,).
+- **Panoramica** con dati in tempo reale: processore, memoria, rete, disco, batteria, temperatura. Più consigli con pulsanti per risolvere e l'invito a **riavviare** se il Mac è acceso da diversi giorni.
+- **Suggerimenti**: controlli di sicurezza (FileVault, firewall, Gatekeeper, aggiornamenti automatici, Time Machine), impostazioni da cambiare a mano e buone abitudini.
+- **Profili**: Massimo, Bilanciato, Sicuro. Puoi anche salvare i tuoi profili.
+- **Ritocchi** singoli (37) per velocità, Dock, Finder, efficienza, tastiera, screenshot, energia e privacy.
+- **Aggiornamenti app**: controlla le app dell'App Store, quelle scaricate dai siti degli sviluppatori (Sparkle) e Homebrew.
 - **Pulizia** di cache, log e file di Xcode. I file vanno nel Cestino, quindi si possono recuperare.
 - **Residui** di app cancellate e **App installate** con "Disinstalla e pulisci".
 - **Avvio**: i programmi che partono da soli.
 - **Manutenzione**: disco, batteria, aggiornamenti di macOS, latenza e velocità della rete, cache DNS, Spotlight.
+- **Segnalazioni**: "Segnala" in basso a sinistra prepara una segnalazione o un'idea e apre la pagina di GitHub (invii tu).
 
 ## Perché è sicuro
 - La **Modalità prova** è accesa a ogni apertura: vedi tutto in anteprima, ma non cambia niente.
 - Prima di ogni modifica: anteprima "ora → dopo", conferma e copia delle impostazioni.
 - **Annulla tutto** rimette i valori di prima.
-- Non tocca i file di sistema protetti di macOS. Non invia dati a nessuno: si collega a Internet solo per cercare gli aggiornamenti di Regia e quando lanci un test di rete.
+- Non tocca i file di sistema protetti di macOS. Non invia dati personali: si collega a Internet solo per cercare gli aggiornamenti (di Regia e delle app: catalogo pubblico dell'App Store e siti degli sviluppatori) e quando lanci un test di rete.
 
 ## Installazione
 1. Apri la pagina **[Releases](https://github.com/sm-bc/regia-mac/releases/latest)** e scarica `Regia-Mac_x.y.zip`.
@@ -48,10 +52,13 @@ Cambiare le impostazioni di sistema comporta sempre un minimo di rischio. Usa la
 <a name="english"></a>
 # Regia for Mac (English)
 
-Free tool for **macOS 14 or later** (Apple Silicon and Intel) that analyzes the Mac and optimizes it safely. It is the Mac version of [Regia for Windows](https://github.com/sm-bc/regia). The interface is in Italian.
+Free tool for **macOS 14 or later** (Apple Silicon and Intel) that analyzes the Mac and optimizes it safely. It is the Mac version of [Regia for Windows](https://github.com/sm-bc/regia). The interface is in English by default, with Italian selectable at the bottom left of the sidebar.
 
-- **Dry-run mode** is on at every launch. Every change shows a preview first, backs up the original values and can be reverted with **Undo all**.
-- Profiles, single tweaks, cleanup to the Trash, leftovers of deleted apps, uninstaller, startup items, maintenance tools and live system data.
+- **Test mode** is on at every launch. Every change shows a preview first, backs up the original values and can be reverted with **Undo All**.
+- Three profiles (Maximum, Balanced, Safe), 37 single tweaks, cleanup to the Trash, leftovers of deleted apps, uninstaller, startup items, maintenance tools and live system data.
+- **Tips**: security checks (FileVault, firewall, Gatekeeper, automatic updates, Time Machine), settings to change by hand, good habits, and a restart reminder when the Mac has been on for days.
+- **App Updates**: checks App Store apps, apps with a Sparkle update feed and Homebrew; the Update button opens the App Store, the app or Terminal.
+- **Feedback**: prepares a bug report or idea and opens the GitHub "New issue" page (nothing is sent until you submit it).
 - **Install:** download `Regia-Mac_x.y.zip` from [Releases](https://github.com/sm-bc/regia-mac/releases/latest) and drag Regia to Applications. On first launch, go to System Settings › Privacy & Security and click **Open Anyway**: the app is not signed with a paid Apple certificate.
 - **Updates:** an **Update** button appears when a new version is out. The package is checked by SHA-256 fingerprint, bundle identifier, version and code signature before it replaces the app.
 

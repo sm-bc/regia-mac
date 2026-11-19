@@ -31,10 +31,14 @@ struct Processo: Identifiable, Hashable {
 
 struct Consiglio: Identifiable {
     enum Livello { case ok, attenzione, problema }
+    /// Cosa succede premendo il pulsante accanto al consiglio.
+    enum Azione: Equatable { case sezione(Sezione), riavvia, apri(String) }
     let id = UUID()
     let livello: Livello
     let titolo: String
     let dettaglio: String
+    var azione: Azione? = nil
+    var testoAzione: String? = nil
 }
 
 enum Analisi {
@@ -53,7 +57,7 @@ enum Analisi {
         let sec = pi.systemUptime
         p.giorniAcceso = sec / 86400
         let g = Int(sec) / 86400, h = (Int(sec) % 86400) / 3600, m = (Int(sec) % 3600) / 60
-        p.acceso = g > 0 ? "\(g) g \(h) h" : (h > 0 ? "\(h) h \(m) min" : "\(m) min")
+        p.acceso = g > 0 ? L("\(g) d \(h) h", "\(g) g \(h) h") : (h > 0 ? "\(h) h \(m) min" : "\(m) min")
 
         if let val = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey]) {
             p.discoTotale = Int64(val.volumeTotalCapacity ?? 0)
@@ -90,50 +94,68 @@ enum Analisi {
         }
     }
 
+    /// Dopo quanti giorni di accensione suggeriamo un riavvio.
+    static let giorniPerRiavvio = 3.0
+
     static func consigli(_ p: Panoramica, pulibile: Int64, avvioUtente: Int) -> [Consiglio] {
         var c: [Consiglio] = []
         let libero = p.percentoDiscoLibero
+        let pct = Int(libero * 100)
         if libero < 0.10 {
-            c.append(Consiglio(livello: .problema, titolo: "Disco quasi pieno",
-                               dettaglio: "Libero solo il \(Int(libero * 100))%. Sotto il 10% il Mac rallenta: usa Pulizia."))
+            c.append(Consiglio(livello: .problema, titolo: L("Disk almost full", "Disco quasi pieno"),
+                               dettaglio: L("Only \(pct)% free. Below 10% the Mac slows down: use Cleanup.",
+                                            "Libero solo il \(pct)%. Sotto il 10% il Mac rallenta: usa Pulizia."),
+                               azione: .sezione(.pulizia), testoAzione: L("Clean up", "Pulisci")))
         } else if libero < 0.20 {
-            c.append(Consiglio(livello: .attenzione, titolo: "Spazio su disco in calo",
-                               dettaglio: "Libero il \(Int(libero * 100))%. Meglio stare sopra il 20%."))
+            c.append(Consiglio(livello: .attenzione, titolo: L("Disk space getting low", "Spazio su disco in calo"),
+                               dettaglio: L("\(pct)% free. Better to stay above 20%.", "Libero il \(pct)%. Meglio stare sopra il 20%."),
+                               azione: .sezione(.pulizia), testoAzione: L("Clean up", "Pulisci")))
         } else {
-            c.append(Consiglio(livello: .ok, titolo: "Spazio su disco a posto", dettaglio: "Libero il \(Int(libero * 100))%."))
+            c.append(Consiglio(livello: .ok, titolo: L("Disk space is fine", "Spazio su disco a posto"),
+                               dettaglio: L("\(pct)% free.", "Libero il \(pct)%.")))
         }
         if pulibile > 1_000_000_000 {
-            c.append(Consiglio(livello: .attenzione, titolo: "\(formatoByte(pulibile)) di file inutili",
-                               dettaglio: "Cache e log che si possono spostare nel Cestino da Pulizia."))
+            c.append(Consiglio(livello: .attenzione, titolo: L("\(formatoByte(pulibile)) of unneeded files", "\(formatoByte(pulibile)) di file inutili"),
+                               dettaglio: L("Caches and logs you can move to the Trash from Cleanup.", "Cache e log che si possono spostare nel Cestino da Pulizia."),
+                               azione: .sezione(.pulizia), testoAzione: L("Clean up", "Pulisci")))
         }
         if let m = p.memoriaLibera {
             if m < 20 {
-                c.append(Consiglio(livello: .problema, titolo: "Memoria sotto pressione",
-                                   dettaglio: "Libera solo il \(m)%. Chiudi le app che usano più memoria (vedi sotto)."))
+                c.append(Consiglio(livello: .problema, titolo: L("Memory under pressure", "Memoria sotto pressione"),
+                                   dettaglio: L("Only \(m)% free. Quit the apps using the most memory (see below).",
+                                                "Libera solo il \(m)%. Chiudi le app che usano più memoria (vedi sotto).")))
             } else {
-                c.append(Consiglio(livello: .ok, titolo: "Memoria a posto", dettaglio: "Libera il \(m)%."))
+                c.append(Consiglio(livello: .ok, titolo: L("Memory is fine", "Memoria a posto"), dettaglio: L("\(m)% free.", "Libera il \(m)%.")))
             }
         }
-        if p.giorniAcceso > 7 {
-            c.append(Consiglio(livello: .attenzione, titolo: "Acceso da \(Int(p.giorniAcceso)) giorni",
-                               dettaglio: "Un riavvio ogni tanto libera memoria e applica gli aggiornamenti."))
+        if p.giorniAcceso >= giorniPerRiavvio {
+            let g = Int(p.giorniAcceso)
+            c.append(Consiglio(livello: p.giorniAcceso > 7 ? .problema : .attenzione,
+                               titolo: L("On for ", "Acceso da ") + P(g, "day", "days", "giorno", "giorni"),
+                               dettaglio: L("A restart frees memory, closes stuck processes and finishes installing updates.",
+                                            "Un riavvio libera memoria, chiude i processi bloccati e completa gli aggiornamenti."),
+                               azione: .riavvia, testoAzione: L("Restart…", "Riavvia…")))
         }
         if let s = p.batteriaSalute {
             if s < 80 {
-                c.append(Consiglio(livello: .problema, titolo: "Batteria al \(s)%",
-                                   dettaglio: "Sotto l'80% Apple consiglia la sostituzione."))
+                c.append(Consiglio(livello: .problema, titolo: L("Battery at \(s)%", "Batteria al \(s)%"),
+                                   dettaglio: L("Below 80% Apple recommends a replacement.", "Sotto l'80% Apple consiglia la sostituzione."),
+                                   azione: .apri("x-apple.systempreferences:com.apple.Battery-Settings.extension"), testoAzione: L("Open", "Apri")))
             } else {
-                c.append(Consiglio(livello: .ok, titolo: "Batteria in salute",
-                                   dettaglio: "Capacità al \(s)% dell'originale, \(p.batteriaCicli ?? 0) cicli."))
+                c.append(Consiglio(livello: .ok, titolo: L("Battery is healthy", "Batteria in salute"),
+                                   dettaglio: L("Capacity at \(s)% of original, \(p.batteriaCicli ?? 0) cycles.",
+                                                "Capacità al \(s)% dell'originale, \(p.batteriaCicli ?? 0) cicli.")))
             }
         }
         if let cpu = p.processiCPU.first, cpu.cpu > 80 {
-            c.append(Consiglio(livello: .attenzione, titolo: "\(cpu.nome) usa molta CPU",
-                               dettaglio: "Al \(Int(cpu.cpu))%: se non lo stai usando, chiudilo."))
+            c.append(Consiglio(livello: .attenzione, titolo: L("\(cpu.nome) is using a lot of CPU", "\(cpu.nome) usa molta CPU"),
+                               dettaglio: L("At \(Int(cpu.cpu))%: if you're not using it, quit it.", "Al \(Int(cpu.cpu))%: se non lo stai usando, chiudilo."),
+                               azione: .apri("file:///System/Applications/Utilities/Activity%20Monitor.app"), testoAzione: L("Activity Monitor", "Monitoraggio Attività")))
         }
         if avvioUtente > 0 {
-            c.append(Consiglio(livello: .attenzione, titolo: "\(avvioUtente) programmi partono da soli",
-                               dettaglio: "Controlla in Avvio quali ti servono davvero."))
+            c.append(Consiglio(livello: .attenzione, titolo: P(avvioUtente, "program starts by itself", "programs start by themselves", "programma parte da solo", "programmi partono da soli"),
+                               dettaglio: L("Check in Startup which ones you really need.", "Controlla in Avvio quali ti servono davvero."),
+                               azione: .sezione(.avvio), testoAzione: L("Review", "Controlla")))
         }
         return c
     }
@@ -165,26 +187,26 @@ enum Pulizia {
     static func zone(base: URL? = nil) -> [ZonaPulizia] {
         let home = base ?? FileManager.default.homeDirectoryForCurrentUser
         return [
-            ZonaPulizia(id: "cache", titolo: "Cache delle app",
-                        spiegazione: "File temporanei che le app ricreano da sole. Escluse quelle di macOS e di Claude.",
+            ZonaPulizia(id: "cache", titolo: L("App caches", "Cache delle app"),
+                        spiegazione: L("Temporary files that apps recreate by themselves. macOS and Claude caches are excluded.", "File temporanei che le app ricreano da sole. Escluse quelle di macOS e di Claude."),
                         icona: "archivebox", cartella: home.appendingPathComponent("Library/Caches"), selezionataDiDefault: true),
-            ZonaPulizia(id: "log", titolo: "Log delle app",
-                        spiegazione: "Registri di funzionamento: servono solo per diagnosticare problemi.",
+            ZonaPulizia(id: "log", titolo: L("App logs", "Log delle app"),
+                        spiegazione: L("Activity records: only needed to diagnose problems.", "Registri di funzionamento: servono solo per diagnosticare problemi."),
                         icona: "doc.text", cartella: home.appendingPathComponent("Library/Logs"), selezionataDiDefault: true),
-            ZonaPulizia(id: "xcode", titolo: "File di compilazione di Xcode",
-                        spiegazione: "DerivedData: Xcode li ricrea alla prossima compilazione.",
+            ZonaPulizia(id: "xcode", titolo: L("Xcode build files", "File di compilazione di Xcode"),
+                        spiegazione: L("DerivedData: Xcode recreates them at the next build.", "DerivedData: Xcode li ricrea alla prossima compilazione."),
                         icona: "hammer", cartella: home.appendingPathComponent("Library/Developer/Xcode/DerivedData"),
                         selezionataDiDefault: true),
-            ZonaPulizia(id: "iossupporto", titolo: "Supporto iPhone/iPad di Xcode",
-                        spiegazione: "File per il debug sui dispositivi: Xcode li riscarica quando colleghi l'iPhone.",
+            ZonaPulizia(id: "iossupporto", titolo: L("Xcode iPhone/iPad support", "Supporto iPhone/iPad di Xcode"),
+                        spiegazione: L("Device debugging files: Xcode downloads them again when you connect the iPhone.", "File per il debug sui dispositivi: Xcode li riscarica quando colleghi l'iPhone."),
                         icona: "iphone", cartella: home.appendingPathComponent("Library/Developer/Xcode/iOS DeviceSupport"),
                         selezionataDiDefault: false, accurata: true),
-            ZonaPulizia(id: "simulatori", titolo: "Cache dei simulatori",
-                        spiegazione: "File temporanei dei simulatori iPhone di Xcode: si ricreano da soli.",
+            ZonaPulizia(id: "simulatori", titolo: L("Simulator caches", "Cache dei simulatori"),
+                        spiegazione: L("Temporary files of Xcode's iPhone simulators: they are recreated automatically.", "File temporanei dei simulatori iPhone di Xcode: si ricreano da soli."),
                         icona: "ipad.and.iphone", cartella: home.appendingPathComponent("Library/Developer/CoreSimulator/Caches"),
                         selezionataDiDefault: false, accurata: true),
-            ZonaPulizia(id: "download", titolo: "Download vecchi (più di 90 giorni)",
-                        spiegazione: "File personali: controlla l'elenco prima di spostarli. macOS chiederà il permesso.",
+            ZonaPulizia(id: "download", titolo: L("Old downloads (over 90 days)", "Download vecchi (più di 90 giorni)"),
+                        spiegazione: L("Personal files: check the list before moving them. macOS will ask for permission.", "File personali: controlla l'elenco prima di spostarli. macOS chiederà il permesso."),
                         icona: "arrow.down.circle", cartella: home.appendingPathComponent("Downloads"),
                         selezionataDiDefault: false, accurata: true, suRichiesta: true),
         ]
@@ -244,9 +266,11 @@ enum Pulizia {
     }
 }
 
+/// Dimensione come nel Finder (1 GB = 1.000.000.000 byte), con i decimali della lingua scelta.
 func formatoByte(_ b: Int64) -> String {
-    let f = ByteCountFormatter()
-    f.countStyle = .file
-    f.allowedUnits = [.useKB, .useMB, .useGB]
-    return f.string(fromByteCount: b)
+    let v = Double(b)
+    if v < 1_000_000 { return "\(Int((v / 1000).rounded())) KB" }
+    if v < 1_000_000_000 { return decimale(v / 1_000_000) + " MB" }
+    if v < 1_000_000_000_000 { return decimale(v / 1_000_000_000) + " GB" }
+    return decimale(v / 1_000_000_000_000, 2) + " TB"
 }

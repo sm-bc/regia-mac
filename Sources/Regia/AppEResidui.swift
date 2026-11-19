@@ -4,9 +4,21 @@ import AppKit
 // MARK: - Residuo: un file o una cartella lasciati da un'app
 
 struct Residuo: Identifiable, Hashable {
-    enum Tipo: String { case preferenze = "Preferenze", supporto = "Dati dell'app", cache = "Cache",
-                        contenitore = "Contenitore", stato = "Stato finestre", avvio = "Avvio automatico",
-                        log = "Log", web = "Dati web", altro = "Altro" }
+    enum Tipo: String { case preferenze, supporto, cache, contenitore, stato, avvio, log, web, altro
+        var nome: String {
+            switch self {
+            case .preferenze: return L("Preferences", "Preferenze")
+            case .supporto: return L("App data", "Dati dell'app")
+            case .cache: return "Cache"
+            case .contenitore: return L("Container", "Contenitore")
+            case .stato: return L("Window state", "Stato finestre")
+            case .avvio: return L("Startup item", "Avvio automatico")
+            case .log: return "Log"
+            case .web: return L("Web data", "Dati web")
+            case .altro: return L("Other", "Altro")
+            }
+        }
+    }
     var id: String { percorso.path }
     let percorso: URL
     let tipo: Tipo
@@ -14,7 +26,7 @@ struct Residuo: Identifiable, Hashable {
     var dimensione: Int64 = 0
     /// Può contenere documenti o impostazioni importanti: non scelto di serie.
     var delicato: Bool { tipo == .supporto || tipo == .contenitore }
-    var descrizione: String { "\(app) · \(tipo.rawValue)" }
+    var descrizione: String { "\(app) · \(tipo.nome)" }
 }
 
 enum Residui {
@@ -216,6 +228,6 @@ enum AppInstallate {
         do { try FileManager.default.trashItem(at: app.percorso, resultingItemURL: &risultato); return nil } catch {}
         let percorso = app.percorso.path.replacingOccurrences(of: "\"", with: "\\\"")
         let r = esegui("/usr/bin/osascript", ["-e", "tell application \"Finder\" to delete (POSIX file \"\(percorso)\" as alias)"])
-        return r.ok ? nil : "Non sono riuscito a spostare \(app.nome) nel Cestino: \(r.errore.trimmingCharacters(in: .whitespacesAndNewlines))"
+        return r.ok ? nil : L("Couldn't move \(app.nome) to the Trash", "Non sono riuscito a spostare \(app.nome) nel Cestino") + ": \(r.errore.trimmingCharacters(in: .whitespacesAndNewlines))"
     }
 }

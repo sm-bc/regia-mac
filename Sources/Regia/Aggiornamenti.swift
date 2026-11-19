@@ -48,24 +48,24 @@ enum Aggiornamenti {
 
     static func valida(_ i: Info, da urlVersione: String) throws {
         guard i.sha256.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil else {
-            throw ErroreRegia.messaggio("versione.json non valido: impronta SHA-256 mancante o sbagliata.")
+            throw ErroreRegia.messaggio(L("Invalid versione.json: SHA-256 fingerprint missing or wrong.", "versione.json non valido: impronta SHA-256 mancante o sbagliata."))
         }
         guard i.versione.range(of: #"^\d+(\.\d+)*$"#, options: .regularExpression) != nil else {
-            throw ErroreRegia.messaggio("versione.json non valido: numero di versione \"\(i.versione)\".")
+            throw ErroreRegia.messaggio(L("Invalid versione.json: version number", "versione.json non valido: numero di versione") + " \"\(i.versione)\".")
         }
         guard fidato(versione: urlVersione, pacchetto: i.url) else {
-            throw ErroreRegia.messaggio("Il pacchetto è su un sito non fidato (\(i.url)): ignorato.")
+            throw ErroreRegia.messaggio(L("The package is on an untrusted site (\(i.url)): ignored.", "Il pacchetto è su un sito non fidato (\(i.url)): ignorato."))
         }
     }
 
     /// Restituisce l'aggiornamento se c'è una versione più nuova, nil se Regia è già aggiornata.
     static func controlla(da indirizzo: String = urlVersione, attuale: String = versioneAttuale) async throws -> Info? {
-        guard let url = URL(string: indirizzo) else { throw ErroreRegia.messaggio("Indirizzo aggiornamenti non valido.") }
+        guard let url = URL(string: indirizzo) else { throw ErroreRegia.messaggio(L("Invalid update address.", "Indirizzo aggiornamenti non valido.")) }
         var richiesta = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
         richiesta.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
         let (dati, risposta) = try await URLSession.shared.data(for: richiesta)
         if let h = risposta as? HTTPURLResponse, h.statusCode != 200 {
-            throw ErroreRegia.messaggio("GitHub ha risposto \(h.statusCode).")
+            throw ErroreRegia.messaggio(L("GitHub replied \(h.statusCode).", "GitHub ha risposto \(h.statusCode)."))
         }
         let info = try JSONDecoder().decode(Info.self, from: dati)
         try valida(info, da: indirizzo)
@@ -88,39 +88,39 @@ enum Aggiornamenti {
         defer { try? fm.removeItem(at: tmp) }
 
         // 1. Scarica
-        guard let sorgente = URL(string: i.url) else { throw ErroreRegia.messaggio("Indirizzo del pacchetto non valido.") }
+        guard let sorgente = URL(string: i.url) else { throw ErroreRegia.messaggio(L("Invalid package address.", "Indirizzo del pacchetto non valido.")) }
         let zip = tmp.appendingPathComponent("Regia.zip")
         if sorgente.isFileURL {
             try fm.copyItem(at: sorgente, to: zip)
         } else {
             let (scaricato, risposta) = try await URLSession.shared.download(from: sorgente)
-            if let h = risposta as? HTTPURLResponse, h.statusCode != 200 { throw ErroreRegia.messaggio("Download non riuscito (\(h.statusCode)).") }
+            if let h = risposta as? HTTPURLResponse, h.statusCode != 200 { throw ErroreRegia.messaggio(L("Download failed (\(h.statusCode)).", "Download non riuscito (\(h.statusCode)).")) }
             try fm.moveItem(at: scaricato, to: zip)
         }
 
         // 2. Impronta SHA-256
         let impronta = try sha256(zip)
         guard impronta == i.sha256.lowercased() else {
-            throw ErroreRegia.messaggio("Il file scaricato non corrisponde all'impronta SHA-256 attesa: aggiornamento annullato, Regia non è stata modificata.")
+            throw ErroreRegia.messaggio(L("The downloaded file doesn't match the expected SHA-256 fingerprint: update cancelled, Regia was not changed.", "Il file scaricato non corrisponde all'impronta SHA-256 attesa: aggiornamento annullato, Regia non è stata modificata."))
         }
-        registro("Pacchetto \(i.versione) scaricato e verificato (SHA-256 \(impronta))")
+        registro(L("Package \(i.versione) downloaded and verified (SHA-256 \(impronta))", "Pacchetto \(i.versione) scaricato e verificato (SHA-256 \(impronta))"))
 
         // 3. Estrai e controlla il contenuto
         let estratto = tmp.appendingPathComponent("x")
         let r = esegui("/usr/bin/ditto", ["-x", "-k", zip.path, estratto.path])
-        guard r.ok else { throw ErroreRegia.messaggio("Non riesco ad aprire lo zip: \(r.errore)") }
+        guard r.ok else { throw ErroreRegia.messaggio(L("Can't open the zip", "Non riesco ad aprire lo zip") + ": \(r.errore)") }
         guard let nuova = (try? fm.contentsOfDirectory(at: estratto, includingPropertiesForKeys: nil))?.first(where: { $0.pathExtension == "app" }) else {
-            throw ErroreRegia.messaggio("Nel pacchetto manca Regia.app.")
+            throw ErroreRegia.messaggio(L("Regia.app is missing from the package.", "Nel pacchetto manca Regia.app."))
         }
         let info = NSDictionary(contentsOf: nuova.appendingPathComponent("Contents/Info.plist")) as? [String: Any]
         guard info?["CFBundleIdentifier"] as? String == identificativo else {
-            throw ErroreRegia.messaggio("Il pacchetto non contiene Regia (identificativo diverso).")
+            throw ErroreRegia.messaggio(L("The package doesn't contain Regia (different identifier).", "Il pacchetto non contiene Regia (identificativo diverso)."))
         }
         guard info?["CFBundleShortVersionString"] as? String == i.versione else {
-            throw ErroreRegia.messaggio("La versione dentro il pacchetto non è la \(i.versione).")
+            throw ErroreRegia.messaggio(L("The version inside the package isn't \(i.versione).", "La versione dentro il pacchetto non è la \(i.versione)."))
         }
         let firma = esegui("/usr/bin/codesign", ["--verify", "--deep", "--strict", nuova.path])
-        guard firma.ok else { throw ErroreRegia.messaggio("La firma dell'app scaricata non è valida: \(firma.errore)") }
+        guard firma.ok else { throw ErroreRegia.messaggio(L("The downloaded app's signature is not valid", "La firma dell'app scaricata non è valida") + ": \(firma.errore)") }
         esegui("/usr/bin/xattr", ["-dr", "com.apple.quarantine", nuova.path])
 
         // 4. Salva la versione attuale in Versioni e metti al suo posto quella nuova
@@ -136,9 +136,9 @@ enum Aggiornamenti {
             try fm.moveItem(at: nuova, to: app)
         } catch {
             if fm.fileExists(atPath: copia.path) { try? fm.moveItem(at: copia, to: app) }   // rimetti la vecchia
-            throw ErroreRegia.messaggio("Non riesco a sostituire l'app: \(error.localizedDescription)")
+            throw ErroreRegia.messaggio(L("Can't replace the app", "Non riesco a sostituire l'app") + ": \(error.localizedDescription)")
         }
-        registro("Regia aggiornata alla \(i.versione); la versione \(vecchiaVersione) è in \(copia.path)")
+        registro(L("Regia updated to \(i.versione); version \(vecchiaVersione) is in \(copia.path)", "Regia aggiornata alla \(i.versione); la versione \(vecchiaVersione) è in \(copia.path)"))
 
         // Tieni solo le ultime 3 versioni vecchie
         let vecchie = ((try? fm.contentsOfDirectory(at: cartellaVersioni, includingPropertiesForKeys: [.contentModificationDateKey])) ?? [])
