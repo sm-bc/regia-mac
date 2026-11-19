@@ -306,7 +306,9 @@ struct VistaApp: View {
     @State private var ordine = 0   // 0 nome, 1 dimensione
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        // Usa Pagina (ScrollView alla base) come le altre sezioni: con List/ScrollView
+        // dentro un VStack la colonna si allungava oltre la finestra e spariva la barra laterale.
+        Pagina {
             Titolo(titolo: L("Installed Apps", "App installate"),
                    sottotitolo: L("\"Uninstall and Clean\" moves the app to the Trash together with the files it leaves in Library. It shows you the list first.",
                                   "\"Disinstalla e pulisci\" sposta l'app nel Cestino insieme ai file che lascia in Libreria. Prima ti mostra l'elenco."))
@@ -319,7 +321,26 @@ struct VistaApp: View {
                     .foregroundStyle(.secondary).monospacedDigit()
                 Button { stato.caricaApp() } label: { Image(systemName: "arrow.clockwise") }.help(L("Reload the list", "Rileggi l'elenco"))
             }
-            List(filtrate) { a in
+            let elenco = filtrate
+            LazyVStack(spacing: 0) {
+                ForEach(Array(elenco.enumerated()), id: \.element.id) { i, a in
+                    rigaApp(a)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(i.isMultiple(of: 2) ? Color.clear : Color.primary.opacity(0.04))
+                }
+                if elenco.isEmpty {
+                    Text(stato.app.isEmpty ? L("Loading…", "Caricamento…") : L("No app found.", "Nessuna app trovata."))
+                        .foregroundStyle(.secondary).padding(20)
+                }
+            }
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.07)))
+        }
+        .onAppear { if stato.app.isEmpty { stato.caricaApp() } }
+    }
+
+    func rigaApp(_ a: AppInstallata) -> some View {
                 HStack(spacing: 10) {
                     Image(nsImage: NSWorkspace.shared.icon(forFile: a.percorso.path)).resizable().frame(width: 30, height: 30)
                     VStack(alignment: .leading, spacing: 1) {
@@ -335,13 +356,6 @@ struct VistaApp: View {
                     Button(L("Uninstall and Clean…", "Disinstalla e pulisci…")) { stato.preparaDisinstallazione(a) }
                         .disabled(a.protetta).controlSize(.small)
                 }
-                .padding(.vertical, 2)
-            }
-            .listStyle(.inset(alternatesRowBackgrounds: true))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        }
-        .padding(24)
-        .onAppear { if stato.app.isEmpty { stato.caricaApp() } }
     }
 
     var filtrate: [AppInstallata] {
