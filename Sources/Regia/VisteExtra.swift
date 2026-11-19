@@ -52,7 +52,7 @@ struct VistaSuggerimenti: View {
             Riquadro {
                 VStack(alignment: .leading, spacing: 12) {
                     Label(L("Good habits", "Buone abitudini"), systemImage: "lightbulb").font(.headline)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 14, alignment: .top)], alignment: .leading, spacing: 14) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 14, alignment: .topLeading)], alignment: .leading, spacing: 14) {
                         ForEach(Suggerimenti.abitudini) { s in
                             HStack(alignment: .top, spacing: 10) {
                                 IconaColorata(simbolo: s.icona, colore: .yellow, lato: 28)
@@ -75,6 +75,8 @@ struct VistaSuggerimenti: View {
                                     }
                                 }
                             }
+                            // Ogni consiglio occupa tutta la cella, allineato a sinistra (prima era centrato e sfalsato).
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
                         }
                     }
                 }

@@ -92,6 +92,17 @@ struct FinestraPrincipale: View {
                 }
                 try? await Task.sleep(for: .seconds(Double(amb["REGIA_ATTESA"] ?? "8") ?? 8))
                 let finestra = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil && $0.sheetParent == nil })
+                // REGIA_SCORRI=fine porta in fondo le pagine scorrevoli, per fotografare la parte finale.
+                if amb["REGIA_SCORRI"] == "fine", let c = finestra?.contentView {
+                    func scorri(_ v: NSView) {
+                        if let s = v as? NSScrollView, let d = s.documentView, d.frame.height > s.contentSize.height {
+                            d.scroll(NSPoint(x: 0, y: d.isFlipped ? d.frame.height - s.contentSize.height : 0))
+                        }
+                        v.subviews.forEach(scorri)
+                    }
+                    scorri(c)
+                    try? await Task.sleep(for: .seconds(1))
+                }
                 if let c = (finestra?.attachedSheet ?? finestra)?.contentView, let v = c.superview ?? Optional(c),
                    let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) {
                     v.cacheDisplay(in: v.bounds, to: rep)
