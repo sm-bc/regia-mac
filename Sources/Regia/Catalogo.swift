@@ -81,6 +81,8 @@ struct Ritocco: Identifiable, Hashable {
     /// Processo da riavviare perché la modifica si veda (Dock, Finder, SystemUIServer).
     var riavvia: String? = nil
     var nota: String? = nil
+    /// Valore di un Mac appena installato per le voci di energia (nil = nessun valore fisso: non si tocca).
+    var predefinitoEnergia: Int? = nil
 
     var serveAdmin: Bool { if case .energia = azione { return true }; return false }
     var valoreNuovoTesto: String {
@@ -93,12 +95,14 @@ struct Ritocco: Identifiable, Hashable {
 
 // MARK: - Profili
 
-struct Profilo: Identifiable {
+struct Profilo: Identifiable, Codable, Hashable {
     let id: String
     let nome: String
     let icona: String
     let descrizione: String
     let ritocchi: [String]
+    var avviso: String? = nil
+    var personale = false
 }
 
 // MARK: - Catalogo
@@ -207,16 +211,16 @@ enum Catalogo {
         // Energia (servono i permessi di amministratore)
         Ritocco(id: "energia.batteriaRisparmio", titolo: "Risparmio energetico a batteria",
                 spiegazione: "Quando non sei in carica il Mac consuma meno e dura di più.", categoria: .energia,
-                azione: .energia(ambito: .batteria, chiave: "lowpowermode", valore: 1)),
+                azione: .energia(ambito: .batteria, chiave: "lowpowermode", valore: 1), predefinitoEnergia: 0),
         Ritocco(id: "energia.batteriaSchermo", titolo: "Schermo spento dopo 3 minuti a batteria",
                 spiegazione: "Lo schermo è la cosa che consuma di più.", categoria: .energia,
                 azione: .energia(ambito: .batteria, chiave: "displaysleep", valore: 3)),
         Ritocco(id: "energia.batteriaNoPowerNap", titolo: "Niente Power Nap a batteria",
                 spiegazione: "In stop a batteria il Mac non si sveglia per mail e aggiornamenti.", categoria: .energia,
-                azione: .energia(ambito: .batteria, chiave: "powernap", valore: 0)),
+                azione: .energia(ambito: .batteria, chiave: "powernap", valore: 0), predefinitoEnergia: 1),
         Ritocco(id: "energia.alimentatorePiena", titolo: "Piena potenza con l'alimentatore",
                 spiegazione: "In carica il Mac non va mai in risparmio energetico.", categoria: .energia,
-                azione: .energia(ambito: .alimentatore, chiave: "lowpowermode", valore: 0)),
+                azione: .energia(ambito: .alimentatore, chiave: "lowpowermode", valore: 0), predefinitoEnergia: 0),
 
         // Privacy
         Ritocco(id: "privacy.noPubblicita", titolo: "Niente pubblicità personalizzata Apple",
@@ -228,6 +232,20 @@ enum Catalogo {
     ]
 
     static let profili: [Profilo] = [
+        Profilo(id: "massimo", nome: "Massimo", icona: "bolt.fill",
+                descrizione: "Tutto quello che migliora il Mac: velocità, Finder, Dock, tastiera, energia e privacy.",
+                ritocchi: ritocchi.map(\.id),
+                avviso: "Il profilo Massimo cambia molte cose insieme, compreso il Dock nascosto e le impostazioni di energia. Leggi bene l'anteprima e togli quello che non vuoi."),
+        Profilo(id: "bilanciato", nome: "Bilanciato", icona: "scalemass",
+                descrizione: "Equilibrio per tutti i giorni: Mac più reattivo e ordinato senza cambiare le tue abitudini.",
+                ritocchi: ["finder.estensioni", "finder.barraPercorso", "finder.cartellePrima", "dock.noRecenti",
+                           "dock.noAnimazioneApertura", "mission.veloce", "ui.ridimensionaVeloce",
+                           "file.noDSStoreRete", "file.noDSStoreUSB", "energia.batteriaNoPowerNap", "privacy.noPubblicita"]),
+        Profilo(id: "sicuro", nome: "Sicuro", icona: "checkmark.shield",
+                descrizione: "Solo modifiche leggere e reversibili: privacy, Finder e file nascosti.",
+                ritocchi: ["finder.estensioni", "finder.barraPercorso", "finder.barraStato", "finder.cartellePrima",
+                           "file.noDSStoreRete", "file.noDSStoreUSB", "privacy.noPubblicita", "privacy.noCrashReporter",
+                           "screenshot.noOmbra"]),
         Profilo(id: "produttivita", nome: "Produttività", icona: "briefcase",
                 descrizione: "Finder più chiaro, Dock pulito, tastiera reattiva. Per ufficio, mail e gestionale.",
                 ritocchi: ["finder.estensioni", "finder.barraPercorso", "finder.barraStato", "finder.cartellePrima",

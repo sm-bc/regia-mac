@@ -8,32 +8,33 @@ struct FinestraPrincipale: View {
 
     var body: some View {
         NavigationSplitView {
-            List(Sezione.allCases, selection: $stato.sezione) { s in
-                Label(s.rawValue, systemImage: s.icona).tag(s)
-            }
-            .navigationSplitViewColumnWidth(min: 170, ideal: 190)
-            .safeAreaInset(edge: .bottom) {
-                VStack(alignment: .leading, spacing: 6) {
-                    if stato.motore.prova {
-                        Label("Modalità prova", systemImage: "testtube.2").font(.caption.bold()).foregroundStyle(.orange)
-                        Text("Il Mac vero non viene toccato.").font(.caption2).foregroundStyle(.secondary)
+            List(selection: $stato.sezione) {
+                ForEach(Sezione.gruppi, id: \.0) { gruppo in
+                    Section(gruppo.0) {
+                        ForEach(gruppo.1) { s in Label(s.rawValue, systemImage: s.icona).tag(s) }
                     }
-                    Text("\(stato.modifiche.count) modifiche attive").font(.caption).foregroundStyle(.secondary)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading).padding(12)
             }
+            .navigationSplitViewColumnWidth(min: 190, ideal: 210)
+            .safeAreaInset(edge: .bottom) { PiedeBarra() }
         } detail: {
-            ZStack {
-                switch stato.sezione ?? .panoramica {
-                case .panoramica: VistaPanoramica()
-                case .profili: VistaProfili()
-                case .ritocchi: VistaRitocchi()
-                case .pulizia: VistaPulizia()
-                case .avvio: VistaAvvio()
-                case .cronologia: VistaCronologia()
+            VStack(spacing: 0) {
+                BannerAvvisi()
+                ZStack {
+                    switch stato.sezione ?? .panoramica {
+                    case .panoramica: VistaPanoramica()
+                    case .profili: VistaProfili()
+                    case .ritocchi: VistaRitocchi()
+                    case .pulizia: VistaPulizia()
+                    case .residui: VistaResidui()
+                    case .app: VistaApp()
+                    case .avvio: VistaAvvio()
+                    case .manutenzione: VistaManutenzione()
+                    case .cronologia: VistaCronologia()
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .toolbar {
             ToolbarItem(placement: .status) {
@@ -61,6 +62,10 @@ struct FinestraPrincipale: View {
         .sheet(isPresented: Binding(get: { stato.anteprima != nil }, set: { if !$0 { stato.anteprima = nil } })) {
             VistaAnteprima()
         }
+        .sheet(isPresented: Binding(get: { stato.residuiApp != nil }, set: { if !$0 { stato.residuiApp = nil } })) {
+            VistaDisinstalla()
+        }
+        .sheet(item: $stato.risultato) { r in VistaRisultato(r: r) }
         .alert(stato.avviso?.titolo ?? "", isPresented: Binding(get: { stato.avviso != nil }, set: { if !$0 { stato.avviso = nil } })) {
             Button("OK") { stato.avviso = nil }
         } message: { Text(stato.avviso?.testo ?? "") }
@@ -114,6 +119,7 @@ struct VistaPanoramica: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 Titolo(titolo: "Panoramica", sottotitolo: "Come sta il tuo Mac adesso. Qui non si cambia niente.")
+                PannelloLive()
                 if let p = stato.panoramica {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 12)], spacing: 12) {
                         Indicatore(icona: "internaldrive", titolo: "Disco libero", valore: formatoByte(p.discoLibero),
@@ -208,8 +214,14 @@ struct VistaProfili: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 Titolo(titolo: "Profili", sottotitolo: "Un gruppo di ritocchi pronto per un uso. Prima di applicare vedi sempre l'anteprima.")
+                HStack {
+                    Spacer()
+                    Button { stato.preparaPredefinito() } label: { Label("Riporta al predefinito…", systemImage: "arrow.counterclockwise") }
+                        .help("Rimette le voci di Regia come su un Mac appena installato (con anteprima, annullabile)")
+                        .disabled(stato.statoRitocchi.isEmpty)
+                }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 14)], spacing: 14) {
-                    ForEach(Catalogo.profili) { p in
+                    ForEach(Catalogo.profili + stato.profiliPersonali) { p in
                         let attivi = p.ritocchi.filter { stato.statoRitocchi[$0]?.attivo == true }.count
                         Riquadro {
                             VStack(alignment: .leading, spacing: 10) {
@@ -232,16 +244,23 @@ struct VistaProfili: View {
                                         }
                                     }
                                 }
-                                Button { stato.preparaAnteprima(titolo: "Profilo \(p.nome)", ids: p.ritocchi) } label: {
-                                    Text("Anteprima e applica").frame(maxWidth: .infinity)
+                                HStack {
+                                    Button { stato.preparaAnteprima(titolo: "Profilo \(p.nome)", ids: p.ritocchi, avviso: p.avviso) } label: {
+                                        Text("Anteprima e applica").frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(.borderedProminent).controlSize(.large)
+                                    .disabled(stato.statoRitocchi.isEmpty)
+                                    if p.personale {
+                                        Button(role: .destructive) { stato.eliminaProfilo(p) } label: { Image(systemName: "trash") }
+                                            .controlSize(.large).help("Elimina questo profilo")
+                                    }
                                 }
-                                .buttonStyle(.borderedProminent).controlSize(.large)
-                                .disabled(stato.statoRitocchi.isEmpty)
                             }
                         }
                     }
                 }
-                Text("🔒 = chiede la password del Mac (la scrivi tu nella finestra di macOS).").font(.caption).foregroundStyle(.secondary)
+                Text("🔒 = chiede la password del Mac (la scrivi tu nella finestra di macOS). Per creare un profilo tuo: scegli i ritocchi in Ritocchi e premi \"Salva come profilo\".")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             .padding(24)
         }
@@ -252,6 +271,8 @@ struct VistaProfili: View {
 
 struct VistaRitocchi: View {
     @EnvironmentObject var stato: Stato
+    @State private var chiediNome = false
+    @State private var nomeProfilo = ""
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
@@ -292,6 +313,7 @@ struct VistaRitocchi: View {
                     Text("\(stato.selezionati.count) ritocchi scelti")
                     Spacer()
                     Button("Togli selezione") { stato.selezionati.removeAll() }
+                    Button("Salva come profilo…") { chiediNome = true }
                     Button("Anteprima e applica") {
                         let ordine = Catalogo.ritocchi.map(\.id).filter { stato.selezionati.contains($0) }
                         stato.preparaAnteprima(titolo: "Ritocchi scelti", ids: ordine)
@@ -300,6 +322,11 @@ struct VistaRitocchi: View {
                 .padding(12).background(.bar)
             }
         }
+        .alert("Nome del profilo", isPresented: $chiediNome) {
+            TextField("Es. Lavoro in ufficio", text: $nomeProfilo)
+            Button("Salva") { stato.salvaProfiloPersonale(nome: nomeProfilo); nomeProfilo = "" }
+            Button("Annulla", role: .cancel) { nomeProfilo = "" }
+        } message: { Text("Il profilo conterrà i \(stato.selezionati.count) ritocchi scelti.") }
     }
 }
 
@@ -344,8 +371,17 @@ struct VistaAnteprima: View {
         let scelte = voci.filter { $0.scelta }
         VStack(alignment: .leading, spacing: 14) {
             Text("Anteprima: \(stato.titoloAnteprima)").font(.title2.bold())
-            Text("Ecco cosa cambia. Quelli già attivi sono esclusi. Prima di applicare Regia salva una copia delle impostazioni.")
+            Text(stato.anteprimaPredefinito ? "Ecco cosa cambia. Prima di applicare Regia salva una copia delle impostazioni."
+                 : "Ecco cosa cambia. Quelli già attivi sono esclusi. Prima di applicare Regia salva una copia delle impostazioni.")
                 .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if let a = stato.avvisoAnteprima {
+                Label(a, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if stato.modalitaProva {
+                Label("Modalità prova accesa: vedrai cosa succederebbe, senza cambiare niente.", systemImage: "testtube.2")
+                    .foregroundStyle(.orange).font(.callout)
+            }
             List {
                 ForEach(voci.indices, id: \.self) { i in
                     let v = voci[i]
@@ -360,11 +396,11 @@ struct VistaAnteprima: View {
                             HStack(spacing: 6) {
                                 Text(v.ora).foregroundStyle(.secondary)
                                 Image(systemName: "arrow.right").foregroundStyle(.secondary)
-                                Text(v.ritocco.valoreNuovoTesto).foregroundStyle(.tint)
+                                Text(v.nuovo).foregroundStyle(.tint)
                             }.font(.callout)
                         }
                     }
-                    .opacity(stato.statoRitocchi[v.ritocco.id]?.attivo == true ? 0.5 : 1)
+                    .opacity(!stato.anteprimaPredefinito && stato.statoRitocchi[v.ritocco.id]?.attivo == true ? 0.5 : 1)
                 }
             }
             .frame(minHeight: 260)
@@ -379,13 +415,13 @@ struct VistaAnteprima: View {
             HStack {
                 Spacer()
                 Button("Annulla") { stato.anteprima = nil }.keyboardShortcut(.cancelAction)
-                Button("Applica \(scelte.count) modifiche") { stato.applicaAnteprima() }
+                Button(stato.modalitaProva ? "Prova \(scelte.count) modifiche" : "Applica \(scelte.count) modifiche") { stato.applicaAnteprima() }
                     .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
                     .disabled(scelte.isEmpty)
             }
         }
         .padding(22)
-        .frame(width: 560, height: 560)
+        .frame(width: 580, height: 600)
     }
 }
 
@@ -402,6 +438,15 @@ struct VistaPulizia: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     Titolo(titolo: "Pulizia", sottotitolo: "I file vanno nel Cestino, non vengono cancellati: se serve li recuperi.")
+                    HStack(spacing: 10) {
+                        Button { stato.scegliPulizia(accurata: false) } label: {
+                            Label("Pulizia sicura", systemImage: "checkmark.shield")
+                        }.help("Cache, log e file di Xcode: si ricreano da soli")
+                        Button { stato.scegliPulizia(accurata: true) } label: {
+                            Label("Pulizia accurata", systemImage: "sparkles")
+                        }.help("Anche supporto iPhone di Xcode, simulatori e download più vecchi di 90 giorni")
+                        Spacer()
+                    }.controlSize(.large)
                     ForEach(stato.zone) { z in
                         Riquadro {
                             VStack(alignment: .leading, spacing: 8) {
@@ -601,6 +646,7 @@ struct VistaCronologia: View {
         case .preferenza: return m.originale ?? "predefinito"
         case .energia: return Catalogo.testoEnergia(chiave: m.chiave ?? "", valore: m.originaleEnergia)
         case .avvio: return "attivo"
+        case .residuo: return m.percorsoOriginale ?? ""
         }
     }
 }

@@ -148,6 +148,8 @@ struct ZonaPulizia: Identifiable {
     let icona: String
     let cartella: URL
     var selezionataDiDefault: Bool
+    /// true = fa parte solo della "Pulizia accurata".
+    var accurata = false
     /// Per le cartelle personali (Download) il calcolo parte solo su richiesta.
     var suRichiesta = false
     var calcolata = false
@@ -173,10 +175,18 @@ enum Pulizia {
                         spiegazione: "DerivedData: Xcode li ricrea alla prossima compilazione.",
                         icona: "hammer", cartella: home.appendingPathComponent("Library/Developer/Xcode/DerivedData"),
                         selezionataDiDefault: true),
+            ZonaPulizia(id: "iossupporto", titolo: "Supporto iPhone/iPad di Xcode",
+                        spiegazione: "File per il debug sui dispositivi: Xcode li riscarica quando colleghi l'iPhone.",
+                        icona: "iphone", cartella: home.appendingPathComponent("Library/Developer/Xcode/iOS DeviceSupport"),
+                        selezionataDiDefault: false, accurata: true),
+            ZonaPulizia(id: "simulatori", titolo: "Cache dei simulatori",
+                        spiegazione: "File temporanei dei simulatori iPhone di Xcode: si ricreano da soli.",
+                        icona: "ipad.and.iphone", cartella: home.appendingPathComponent("Library/Developer/CoreSimulator/Caches"),
+                        selezionataDiDefault: false, accurata: true),
             ZonaPulizia(id: "download", titolo: "Download vecchi (più di 90 giorni)",
                         spiegazione: "File personali: controlla l'elenco prima di spostarli. macOS chiederà il permesso.",
                         icona: "arrow.down.circle", cartella: home.appendingPathComponent("Downloads"),
-                        selezionataDiDefault: false, suRichiesta: true),
+                        selezionataDiDefault: false, accurata: true, suRichiesta: true),
         ]
     }
 

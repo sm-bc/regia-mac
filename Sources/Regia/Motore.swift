@@ -29,7 +29,7 @@ func esegui(_ programma: String, _ argomenti: [String]) -> Esito {
 // MARK: - Registro delle modifiche (serve per "Annulla")
 
 struct Modifica: Codable, Identifiable {
-    enum Tipo: String, Codable { case preferenza, energia, avvio }
+    enum Tipo: String, Codable { case preferenza, energia, avvio, residuo }
     var id = UUID()
     var data = Date()
     var tipo: Tipo
@@ -63,6 +63,9 @@ final class Motore {
     let cartellaProva: URL?
     private(set) var modifiche: [Modifica] = []
     var registro: ((String) -> Void)?
+
+    /// Cartella Inizio dell'utente (in simulazione: una cartella finta).
+    var home: URL { cartellaProva ?? FileManager.default.homeDirectoryForCurrentUser }
 
     private var fileModifiche: URL { cartella.appendingPathComponent("modifiche.json") }
     private var fileRegistro: URL { cartella.appendingPathComponent("registro.txt") }
@@ -204,8 +207,9 @@ final class Motore {
     // MARK: Applica
 
     /// Applica i ritocchi scelti. Salva prima i valori originali per poter annullare.
+    /// Con `predefinito: true` rimette i valori di un Mac appena installato (sempre annullabile).
     @discardableResult
-    func applica(_ ritocchi: [Ritocco]) -> (applicati: Int, errori: [String]) {
+    func applica(_ ritocchi: [Ritocco], predefinito: Bool = false) -> (applicati: Int, errori: [String]) {
         var errori: [String] = []
         var applicati = 0
         var daRiavviare = Set<String>()
@@ -220,15 +224,21 @@ final class Motore {
                 continue
             }
             do {
-                try scriviPreferenza(dom, chiave, valore.argomenti)
+                let nuovo = predefinito ? "predefinito di macOS" : valore.testo
+                if predefinito {
+                    guard prima.valore != nil else { continue }
+                    cancellaPreferenza(dom, chiave)
+                } else {
+                    try scriviPreferenza(dom, chiave, valore.argomenti)
+                }
                 if modifica(per: t.id) == nil {
                     modifiche.append(Modifica(tipo: .preferenza, ritoccoID: t.id, titolo: t.titolo,
                                               dominio: dom, chiave: chiave, originale: prima.valore,
-                                              tipoOriginale: prima.tipo, nuovo: valore.testo))
+                                              tipoOriginale: prima.tipo, nuovo: nuovo))
                 }
                 applicati += 1
                 if let r = t.riavvia { daRiavviare.insert(r) }
-                scriviRegistro("Applicato: \(t.titolo) (prima: \(prima.valore ?? "predefinito"), ora: \(valore.testo))")
+                scriviRegistro("\(predefinito ? "Predefinito" : "Applicato"): \(t.titolo) (prima: \(prima.valore ?? "predefinito"), ora: \(nuovo))")
             } catch {
                 errori.append(error.localizedDescription)
             }
@@ -236,7 +246,9 @@ final class Motore {
 
         // 2. Energia: tutti insieme, una sola password
         let energetici = ritocchi.compactMap { t -> (Ritocco, Ambito, String, Int)? in
-            if case .energia(let a, let k, let v) = t.azione { return (t, a, k, v) }; return nil
+            guard case .energia(let a, let k, let v) = t.azione else { return nil }
+            if predefinito { return t.predefinitoEnergia.map { (t, a, k, $0) } }
+            return (t, a, k, v)
         }
         if !energetici.isEmpty {
             let prima = leggiEnergia()
@@ -305,7 +317,7 @@ final class Motore {
             if let a = m.ambito, let k = m.chiave, let v = m.originaleEnergia {
                 try applicaEnergia([(a, k, v)])
             }
-        case .avvio:
+        case .avvio, .residuo:
             try riattivaAvvio(m)
         }
         modifiche.removeAll { $0.id == m.id }
@@ -340,8 +352,7 @@ final class Motore {
     // MARK: Avvio automatico (LaunchAgents)
 
     var cartellaAgentiUtente: URL {
-        if let p = cartellaProva { return p.appendingPathComponent("LaunchAgents") }
-        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/LaunchAgents")
+        home.appendingPathComponent("Library/LaunchAgents")
     }
     var cartellaDisattivati: URL { cartella.appendingPathComponent("Avvio disattivato") }
 
@@ -385,9 +396,52 @@ final class Motore {
         guard let o = m.percorsoOriginale, let s = m.percorsoSalvato else { return }
         let fm = FileManager.default
         if fm.fileExists(atPath: s) {
-            if fm.fileExists(atPath: o) { try fm.removeItem(atPath: s) } else { try fm.moveItem(atPath: s, toPath: o) }
+            if fm.fileExists(atPath: o) { throw ErroreRegia.messaggio("Al suo posto c'è già un file: \(o)") }
+            try fm.createDirectory(at: URL(fileURLWithPath: o).deletingLastPathComponent(), withIntermediateDirectories: true)
+            try fm.moveItem(atPath: s, toPath: o)
         }
-        if !prova { esegui("/bin/launchctl", ["bootstrap", "gui/\(getuid())", o]) }
+        if m.tipo == .avvio && !prova { esegui("/bin/launchctl", ["bootstrap", "gui/\(getuid())", o]) }
+    }
+
+    // MARK: Residui di app cancellate (messi da parte, si possono rimettere)
+
+    var cartellaResidui: URL { cartella.appendingPathComponent("Residui messi da parte") }
+
+    func mettiDaParte(_ r: Residuo) throws {
+        let fm = FileManager.default
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let dir = cartellaResidui.appendingPathComponent(f.string(from: Date()))
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let destinazione = dir.appendingPathComponent("\(UUID().uuidString.prefix(6))-\(r.percorso.lastPathComponent)")
+        if r.tipo == .avvio && !prova { esegui("/bin/launchctl", ["bootout", "gui/\(getuid())", r.percorso.path]) }
+        try fm.moveItem(at: r.percorso, to: destinazione)
+        modifiche.append(Modifica(tipo: .residuo, ritoccoID: "residuo.\(r.percorso.path)", titolo: "Residuo: \(r.descrizione)",
+                                  percorsoOriginale: r.percorso.path, percorsoSalvato: destinazione.path, nuovo: "messo da parte"))
+        try salvaModifiche()
+        scriviRegistro("Residuo messo da parte: \(r.percorso.path)")
+    }
+
+    // MARK: Profili personali
+
+    private var fileProfili: URL { cartella.appendingPathComponent("profili.json") }
+
+    func profiliPersonali() -> [Profilo] {
+        guard let d = try? Data(contentsOf: fileProfili) else { return [] }
+        return (try? JSONDecoder().decode([Profilo].self, from: d)) ?? []
+    }
+
+    func salvaProfilo(nome: String, ritocchi: [String]) throws {
+        var lista = profiliPersonali().filter { $0.nome.lowercased() != nome.lowercased() }
+        lista.append(Profilo(id: "personale.\(UUID().uuidString.prefix(8))", nome: nome, icona: "person.crop.circle",
+                             descrizione: "Profilo creato da te (\(ritocchi.count) ritocchi).", ritocchi: ritocchi, personale: true))
+        try JSONEncoder.regia.encode(lista).write(to: fileProfili, options: .atomic)
+        scriviRegistro("Salvato il profilo personale \"\(nome)\"")
+    }
+
+    func eliminaProfilo(_ p: Profilo) {
+        let lista = profiliPersonali().filter { $0.id != p.id }
+        try? JSONEncoder.regia.encode(lista).write(to: fileProfili, options: .atomic)
+        scriviRegistro("Eliminato il profilo personale \"\(p.nome)\"")
     }
 }
 

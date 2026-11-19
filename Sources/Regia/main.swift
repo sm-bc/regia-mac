@@ -43,6 +43,13 @@ func analisiTestuale() {
         let s = m.statoAttuale(t, energia: e)
         print("\(s.attivo ? "✓" : "·") \(t.titolo) — ora: \(s.testo)")
     }
+    print("\n== Residui di app cancellate")
+    for r in Residui.orfani(home: m.home, simulazione: false) {
+        print("\(r.delicato ? "[dati] " : "")\(r.app) · \(r.tipo.rawValue) · \(formatoByte(r.dimensione)) · \(r.percorso.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))")
+    }
+    print("\n== App installate")
+    let lista = AppInstallate.elenco(home: m.home, simulazione: false)
+    print("\(lista.count) app, \(lista.filter { $0.protetta }.count) protette")
     print("\n== Consigli")
     for c in Analisi.consigli(p, pulibile: totale, avvioUtente: av.filter { $0.livello == .utente }.count) {
         print("- \(c.titolo): \(c.dettaglio)")
@@ -122,7 +129,83 @@ func autotest() -> Bool {
     for u in p.spostati { try? fm.removeItem(at: u) }   // togliamo dal Cestino il file di prova
     verifica(fm.fileExists(atPath: cache.appendingPathComponent("com.apple.Safari").path), "pulizia: cache Apple non toccata")
 
-    // 7. Registro
+    // 7. Riporta al predefinito (e poi Annulla)
+    try? m.scriviPreferenza("com.apple.dock", "autohide", ["-bool", "true"])
+    let massimo = Catalogo.ritocchi
+    let rp = m.applica(massimo, predefinito: true)
+    verifica(rp.errori.isEmpty, "predefinito senza errori \(rp.errori)")
+    verifica(m.leggiPreferenza("com.apple.dock", "autohide").valore == nil, "predefinito: autohide tolto")
+    verifica(m.leggiPreferenza("com.apple.dock", "autohide-delay").valore == nil, "predefinito: autohide-delay tolto")
+    let ep = m.leggiEnergia()
+    verifica(ep[.alimentatore]?["lowpowermode"] == 0 && ep[.batteria]?["powernap"] == 1 && ep[.batteria]?["displaysleep"] == 10,
+             "predefinito energia: risparmio spento, Power Nap acceso, schermo non toccato")
+    _ = m.annullaTutto()
+    verifica(m.leggiPreferenza("com.apple.dock", "autohide").valore == "1" && m.leggiPreferenza("com.apple.dock", "autohide-delay").valore == "0.5",
+             "annulla dopo predefinito: valori di prima tornati")
+    verifica(m.leggiEnergia()[.alimentatore]?["lowpowermode"] == 1, "annulla dopo predefinito: energia tornata")
+
+    // 8. Profili personali
+    try? m.salvaProfilo(nome: "Ufficio", ritocchi: ["finder.estensioni", "dock.noRecenti"])
+    try? m.salvaProfilo(nome: "ufficio", ritocchi: ["finder.estensioni"])
+    let pp = m.profiliPersonali()
+    verifica(pp.count == 1 && pp[0].ritocchi == ["finder.estensioni"] && pp[0].personale, "profilo personale salvato (stesso nome sostituito)")
+    m.eliminaProfilo(pp[0])
+    verifica(m.profiliPersonali().isEmpty, "profilo personale eliminato")
+
+    // 9. App installate e residui
+    let lib = base.appendingPathComponent("Library")
+    func crea(_ rel: String, _ byte: Int = 1000) {
+        let u = base.appendingPathComponent(rel)
+        try? fm.createDirectory(at: u.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data(count: byte).write(to: u)
+    }
+    let infoApp = base.appendingPathComponent("Applications/Esempio.app/Contents/Info.plist")
+    try? fm.createDirectory(at: infoApp.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try? PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.esempio.installata", "CFBundleShortVersionString": "2.1"],
+                                        format: .xml, options: 0).write(to: infoApp)
+    let infoDis = base.appendingPathComponent("Applications/Disinstalla Esempio.app/Contents/Info.plist")
+    try? fm.createDirectory(at: infoDis.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try? PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.esempio.disinstallatore"], format: .xml, options: 0).write(to: infoDis)
+    crea("Library/Preferences/com.esempio.installata.plist")
+    crea("Library/Caches/com.esempio.installata/c.bin", 5000)
+    crea("Library/Application Support/Esempio/dati.db")
+    crea("Library/Preferences/com.vecchiaditta.cancellata.plist")
+    crea("Library/Caches/com.vecchiaditta.cancellata/c.bin", 3000)
+    crea("Library/Application Support/com.vecchiaditta.cancellata/doc.txt")
+    crea("Library/Preferences/com.apple.finder.plist")
+    let orfano = lib.appendingPathComponent("LaunchAgents/com.esempio.vecchio.plist")
+    try? PropertyListSerialization.data(fromPropertyList: ["Label": "com.esempio.vecchio", "Program": "/Applications/NonEsiste.app/Contents/MacOS/x"],
+                                        format: .xml, options: 0).write(to: orfano)
+    let elencoApp = AppInstallate.elenco(home: base, simulazione: true)
+    verifica(elencoApp.count == 2 && elencoApp.contains { $0.bundleID == "com.esempio.installata" && $0.versione == "2.1" }, "elenco app: trovate 2 app")
+    if let app = elencoApp.first(where: { $0.bundleID == "com.esempio.installata" }) {
+        let res = Residui.trova(bundleID: app.bundleID, nome: app.nome, home: base)
+        verifica(res.count == 3, "residui dell'app installata: preferenze, cache e cartella col nome (\(res.count))")
+        verifica(res.first { $0.tipo == .supporto }?.delicato == true, "cartella dati segnata come delicata")
+        verifica(AppInstallate.disinstallatore(per: app, tra: elencoApp)?.nome == "Disinstalla Esempio", "riconosce il programma di disinstallazione")
+    }
+    let orf = Residui.orfani(home: base, simulazione: true)
+    let percorsiOrf = Set(orf.map { $0.percorso.lastPathComponent })
+    verifica(percorsiOrf == ["com.esempio.vecchio.plist", "com.vecchiaditta.cancellata.plist", "com.vecchiaditta.cancellata"] && orf.count == 4,
+             "orfani: avvio rotto + 3 file dell'app cancellata, niente di Apple o installato (\(orf.count))")
+    for r in orf { try? m.mettiDaParte(r) }
+    verifica(!fm.fileExists(atPath: orfano.path) && Residui.orfani(home: base, simulazione: true).isEmpty, "orfani messi da parte")
+    _ = m.annullaTutto()
+    verifica(fm.fileExists(atPath: orfano.path) && Residui.orfani(home: base, simulazione: true).count == 4, "annulla: orfani rimessi al loro posto")
+
+    // 10. Latenza e tempo reale
+    let pg = Manutenzione.analizzaPing("Router", "192.168.1.1",
+        "10 packets transmitted, 9 packets received, 10.0% packet loss\nround-trip min/avg/max/stddev = 4.107/7.021/8.657/2.066 ms")
+    verifica(pg.media == 7.021 && pg.persi == 10 && Manutenzione.giudizio(pg).contains("persi 10%"), "latenza: lettura del ping")
+    verifica(Manutenzione.giudizio(Manutenzione.analizzaPing("DNS", "x", "100.0% packet loss")).contains("nessuna risposta"), "latenza: nessuna risposta")
+    let dest = Manutenzione.destinazioniPing()
+    verifica(dest.allSatisfy { $0.1.split(separator: ".").count == 4 }, "latenza: indirizzi letti bene \(dest.map { $0.1 })")
+    let mis = Misuratore()
+    _ = mis.campione(); Thread.sleep(forTimeInterval: 0.5)
+    let c = mis.campione()
+    verifica(c.cpu >= 0 && c.cpu <= 100 && c.memoriaUsataGB > 0.5 && c.memoriaTotaleGB > 1, String(format: "tempo reale: CPU %.0f%%, memoria %.1f GB", c.cpu, c.memoriaUsataGB))
+
+    // 11. Registro
     verifica(m.leggiRegistro().count > 10, "registro scritto (\(m.leggiRegistro().count) righe)")
 
     pulisciDomini()
