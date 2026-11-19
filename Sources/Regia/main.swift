@@ -205,7 +205,69 @@ func autotest() -> Bool {
     let c = mis.campione()
     verifica(c.cpu >= 0 && c.cpu <= 100 && c.memoriaUsataGB > 0.5 && c.memoriaTotaleGB > 1, String(format: "tempo reale: CPU %.0f%%, memoria %.1f GB", c.cpu, c.memoriaUsataGB))
 
-    // 11. Registro
+    // 11. Aggiornamenti (tutto in locale, GitHub non viene toccato)
+    verifica(Aggiornamenti.piuNuova("2.10", di: "2.9") && Aggiornamenti.piuNuova("3", di: "2.9.9") && !Aggiornamenti.piuNuova("2.1", di: "2.1.0")
+             && !Aggiornamenti.piuNuova("2.0", di: "2.1"), "aggiornamenti: confronto delle versioni")
+    let gh = "https://raw.githubusercontent.com/sm-bc/regia-mac/main/versione.json"
+    verifica(Aggiornamenti.fidato(versione: gh, pacchetto: "https://github.com/sm-bc/regia-mac/releases/download/v2.1/Regia-Mac_2.1.zip")
+             && !Aggiornamenti.fidato(versione: gh, pacchetto: "https://sito-strano.example/Regia.zip")
+             && !Aggiornamenti.fidato(versione: gh, pacchetto: "http://github.com/x.zip")
+             && !Aggiornamenti.fidato(versione: gh, pacchetto: "file:///tmp/x.zip"), "aggiornamenti: solo pacchetti https da GitHub")
+    func creaApp(_ dove: URL, versione: String, id: String = Aggiornamenti.identificativo) {
+        let c = dove.appendingPathComponent("Contents")
+        try? fm.createDirectory(at: c.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
+        try? PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": id, "CFBundleShortVersionString": versione,
+                                                               "CFBundleExecutable": "Regia", "CFBundlePackageType": "APPL"],
+                                            format: .xml, options: 0).write(to: c.appendingPathComponent("Info.plist"))
+        try? "#!/bin/sh\necho \(versione)\n".write(to: c.appendingPathComponent("MacOS/Regia"), atomically: true, encoding: .utf8)
+        esegui("/bin/chmod", ["+x", c.appendingPathComponent("MacOS/Regia").path])
+        esegui("/usr/bin/codesign", ["--force", "--sign", "-", dove.path])
+    }
+    func versioneDi(_ app: URL) -> String? {
+        NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))?["CFBundleShortVersionString"] as? String
+    }
+    let agg = base.appendingPathComponent("Aggiornamento")
+    let installata = agg.appendingPathComponent("Installata/Regia.app")
+    creaApp(installata, versione: "2.0")
+    creaApp(agg.appendingPathComponent("Nuova/Regia.app"), versione: "9.9")
+    let zipNuovo = agg.appendingPathComponent("Regia-Mac_9.9.zip")
+    esegui("/usr/bin/ditto", ["-c", "-k", "--keepParent", agg.appendingPathComponent("Nuova/Regia.app").path, zipNuovo.path])
+    let sha = (try? Aggiornamenti.sha256(zipNuovo)) ?? ""
+    let fileVersione = agg.appendingPathComponent("versione.json")
+    func scriviVersione(_ i: Aggiornamenti.Info) { try? JSONEncoder().encode(i).write(to: fileVersione) }
+    let versioni = agg.appendingPathComponent("Versioni")
+    func attendi<T>(_ f: @escaping () async throws -> T) -> Result<T, Error> {
+        var r: Result<T, Error>!
+        let s = DispatchSemaphore(value: 0)
+        Task { do { r = .success(try await f()) } catch { r = .failure(error) }; s.signal() }
+        s.wait()
+        return r
+    }
+    // impronta sbagliata → niente cambia
+    scriviVersione(.init(versione: "9.9", url: zipNuovo.absoluteString, sha256: String(repeating: "a", count: 64), note: "prova"))
+    let trovato = attendi { try await Aggiornamenti.controlla(da: fileVersione.absoluteString, attuale: "2.0") }
+    verifica((try? trovato.get())??.versione == "9.9", "aggiornamenti: trovata la 9.9")
+    verifica((try? attendi { try await Aggiornamenti.controlla(da: fileVersione.absoluteString, attuale: "9.9") }.get()) == .some(nil),
+             "aggiornamenti: già aggiornata → niente pulsante")
+    if case .success(let info?) = trovato {
+        let r1 = attendi { try await Aggiornamenti.installa(info, da: fileVersione.absoluteString, app: installata, cartellaVersioni: versioni) { _ in } }
+        verifica((try? r1.get()) == nil && versioneDi(installata) == "2.0", "aggiornamenti: impronta sbagliata → rifiutato, app invariata")
+    }
+    // identificativo diverso → rifiutato
+    creaApp(agg.appendingPathComponent("Falsa/Regia.app"), versione: "9.9", id: "com.altro.app")
+    let zipFalso = agg.appendingPathComponent("falso.zip")
+    esegui("/usr/bin/ditto", ["-c", "-k", "--keepParent", agg.appendingPathComponent("Falsa/Regia.app").path, zipFalso.path])
+    let infoFalsa = Aggiornamenti.Info(versione: "9.9", url: zipFalso.absoluteString, sha256: (try? Aggiornamenti.sha256(zipFalso)) ?? "")
+    let r2 = attendi { try await Aggiornamenti.installa(infoFalsa, da: fileVersione.absoluteString, app: installata, cartellaVersioni: versioni) { _ in } }
+    verifica((try? r2.get()) == nil && versioneDi(installata) == "2.0", "aggiornamenti: app con identificativo diverso → rifiutata")
+    // tutto giusto → installata, vecchia salvata in Versioni
+    let buona = Aggiornamenti.Info(versione: "9.9", url: zipNuovo.absoluteString, sha256: sha)
+    let r3 = attendi { try await Aggiornamenti.installa(buona, da: fileVersione.absoluteString, app: installata, cartellaVersioni: versioni) { _ in } }
+    let salvata = try? r3.get()
+    verifica(versioneDi(installata) == "9.9" && salvata.map { versioneDi($0) } == "2.0", "aggiornamenti: installata la 9.9, la 2.0 è in Versioni")
+    verifica(esegui("/usr/bin/codesign", ["--verify", "--deep", "--strict", installata.path]).ok, "aggiornamenti: firma dell'app nuova valida")
+
+    // 12. Registro
     verifica(m.leggiRegistro().count > 10, "registro scritto (\(m.leggiRegistro().count) righe)")
 
     pulisciDomini()

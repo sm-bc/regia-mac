@@ -78,6 +78,11 @@ final class Stato: ObservableObject {
     @Published var risultato: RisultatoStrumento? = nil
     @Published var inCorso: String? = nil
     @Published var serveRiavvio: [String] = []
+    // Aggiornamenti da GitHub
+    @Published var aggiornamento: Aggiornamenti.Info? = nil
+    @Published var cercandoAggiornamenti = false
+    @Published var aggiornamentoInstallato: String? = nil
+    private var controlloFatto = false
 
     init(motore: Motore) {
         self.motore = motore
@@ -104,6 +109,7 @@ final class Stato: ObservableObject {
     // MARK: Caricamento
 
     func aggiornaTutto() {
+        if !controlloFatto { controlloFatto = true; cercaAggiornamenti(silenzioso: true) }
         Task {
             occupato = "Analizzo il Mac…"
             let m = motore
@@ -452,6 +458,58 @@ final class Stato: ObservableObject {
         if soloProva("Riavvierei il Mac") { return }
         motore.scriviRegistro("Riavvio del Mac richiesto da Regia")
         if let e = Manutenzione.riavvia() { avviso = ("Riavvio non partito", e) }
+    }
+
+    // MARK: Aggiornamenti
+
+    func cercaAggiornamenti(silenzioso: Bool) {
+        cercandoAggiornamenti = true
+        Task {
+            do {
+                aggiornamento = try await Aggiornamenti.controlla()
+                if let a = aggiornamento {
+                    motore.scriviRegistro("Aggiornamento disponibile: Regia \(a.versione) (hai la \(Aggiornamenti.versioneAttuale))")
+                } else if !silenzioso {
+                    avviso = ("Aggiornamenti", "Hai già la versione più recente di Regia (\(Aggiornamenti.versioneAttuale)).")
+                }
+            } catch {
+                motore.scriviRegistro("Controllo aggiornamenti non riuscito: \(error.localizedDescription)")
+                if !silenzioso {
+                    avviso = ("Aggiornamenti", "Non sono riuscito a controllare gli aggiornamenti. Controlla la connessione a Internet e riprova.\n\n\(error.localizedDescription)")
+                }
+            }
+            registro = motore.leggiRegistro()
+            cercandoAggiornamenti = false
+        }
+    }
+
+    func installaAggiornamento() {
+        guard let a = aggiornamento else { return }
+        let app = Bundle.main.bundleURL
+        guard app.pathExtension == "app" else {
+            avviso = ("Aggiornamento", "L'aggiornamento funziona solo dall'app Regia.app.")
+            return
+        }
+        let versioni = motore.cartella.appendingPathComponent("Versioni")
+        let m = motore
+        Task {
+            occupato = "Scarico Regia \(a.versione)…"
+            do {
+                try await Aggiornamenti.installa(a, app: app, cartellaVersioni: versioni) { riga in m.scriviRegistro(riga) }
+                aggiornamento = nil
+                aggiornamentoInstallato = a.versione
+            } catch {
+                m.scriviRegistro("Aggiornamento non riuscito: \(error.localizedDescription)")
+                avviso = ("Aggiornamento non riuscito", error.localizedDescription)
+            }
+            registro = motore.leggiRegistro()
+            occupato = nil
+        }
+    }
+
+    func riapriDopoAggiornamento() {
+        Aggiornamenti.riapri(Bundle.main.bundleURL)
+        NSApp.terminate(nil)
     }
 
     // MARK: Varie

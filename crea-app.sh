@@ -5,13 +5,13 @@
 set -e
 cd "$(dirname "$0")"
 echo "1/4 Compilo…"
-swift build -c release --arch arm64 2>&1 | tail -1
+swift build -c release --arch arm64 --arch x86_64 2>&1 | grep -v "deprecated" | tail -1   # Apple Silicon + Intel
 
 echo "2/4 Creo il pacchetto…"
 APP="Regia.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$(swift build -c release --arch arm64 --show-bin-path)/Regia" "$APP/Contents/MacOS/Regia"
+cp "$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)/Regia" "$APP/Contents/MacOS/Regia"
 VERSIONE=$(cat VERSIONE 2>/dev/null || echo 1.0)
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -19,7 +19,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <plist version="1.0"><dict>
   <key>CFBundleName</key><string>Regia</string>
   <key>CFBundleDisplayName</key><string>Regia</string>
-  <key>CFBundleIdentifier</key><string>com.samuele.regia</string>
+  <key>CFBundleIdentifier</key><string>io.github.sm-bc.regia</string>
   <key>CFBundleExecutable</key><string>Regia</string>
   <key>CFBundleIconFile</key><string>Regia</string>
   <key>CFBundlePackageType</key><string>APPL</string>

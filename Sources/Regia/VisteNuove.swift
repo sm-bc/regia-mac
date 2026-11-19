@@ -7,9 +7,16 @@ import AppKit
 struct PiedeBarra: View {
     @EnvironmentObject var stato: Stato
     @State private var confermaRiavvio = false
+    @State private var confermaAggiornamento = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let a = stato.aggiornamento {
+                Button { confermaAggiornamento = true } label: {
+                    Label("Aggiorna alla \(a.versione)", systemImage: "arrow.down.circle.fill").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent).controlSize(.large)
+            }
             Divider()
             Toggle(isOn: $stato.modalitaProva) {
                 VStack(alignment: .leading, spacing: 1) {
@@ -21,7 +28,15 @@ struct PiedeBarra: View {
             .toggleStyle(.switch).tint(.orange)
             Button { confermaRiavvio = true } label: { Label("Riavvia il Mac…", systemImage: "restart") }
                 .buttonStyle(.borderless)
-            Text("\(stato.modifiche.count) modifiche attive").font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Text("Regia \(Aggiornamenti.versioneAttuale) · \(stato.modifiche.count) modifiche attive").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                if stato.cercandoAggiornamenti { ProgressView().controlSize(.mini) }
+                else {
+                    Button { stato.cercaAggiornamenti(silenzioso: false) } label: { Image(systemName: "arrow.triangle.2.circlepath") }
+                        .buttonStyle(.borderless).help("Cerca aggiornamenti di Regia")
+                }
+            }
             if stato.motore.prova {
                 Label("Simulazione su dati finti", systemImage: "testtube.2").font(.caption2).foregroundStyle(.purple)
             }
@@ -30,6 +45,23 @@ struct PiedeBarra: View {
         .confirmationDialog("Riavviare il Mac?", isPresented: $confermaRiavvio) {
             Button("Riavvia") { stato.riavviaMac() }
         } message: { Text(testoRiavvio) }
+        .alert("Aggiornare Regia?", isPresented: $confermaAggiornamento) {
+            Button("Aggiorna") { stato.installaAggiornamento() }
+            Button("Annulla", role: .cancel) {}
+        } message: { Text(testoAggiornamento) }
+        .alert("Aggiornamento completato", isPresented: Binding(get: { stato.aggiornamentoInstallato != nil },
+                                                                 set: { if !$0 { stato.aggiornamentoInstallato = nil } })) {
+            Button("Riapri Regia") { stato.riapriDopoAggiornamento() }
+            Button("Più tardi", role: .cancel) {}
+        } message: { Text("Ora hai la versione \(stato.aggiornamentoInstallato ?? ""). Riapri Regia per usarla.") }
+    }
+
+    var testoAggiornamento: String {
+        guard let a = stato.aggiornamento else { return "" }
+        var t = "Dalla versione \(Aggiornamenti.versioneAttuale) alla \(a.versione)."
+        if let n = a.note, !n.isEmpty { t += "\n\nNovità:\n\(n)" }
+        t += "\n\nScarico il pacchetto da GitHub e lo controllo con l'impronta SHA-256. Prima di sostituire l'app ne salvo una copia nella cartella Versioni. Modifiche, backup, registro e profili non vengono toccati."
+        return t
     }
 
     var testoRiavvio: String {

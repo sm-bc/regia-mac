@@ -159,7 +159,7 @@ struct ZonaPulizia: Identifiable {
 
 enum Pulizia {
     /// Cache che non tocchiamo mai: app in uso adesso o gestite da macOS.
-    static let escluse = ["com.apple.", "com.anthropic", "Claude", "com.samuele.regia", "CloudKit", "FamilyCircle",
+    static let escluse = ["com.apple.", "com.anthropic", "Claude", "io.github.sm-bc.regia", "CloudKit", "FamilyCircle",
                           "com.microsoft.SharePoint", "Homebrew"]
 
     static func zone(base: URL? = nil) -> [ZonaPulizia] {

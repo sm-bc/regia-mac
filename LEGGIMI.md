@@ -22,9 +22,19 @@ App per ottimizzare il Mac, sorella di Regia per Windows. SwiftUI, nessuna dipen
 - `registro.txt`: tutto quello che è stato fatto.
 - Le impostazioni energia (🔒) chiedono la password nella finestra di macOS.
 
+## Pubblicare una versione nuova su GitHub
+1. Fai le modifiche e prova con `./Regia.app/Contents/MacOS/Regia --autotest`.
+2. Aumenta il numero nel file `VERSIONE` (es. 2.1 → 2.2) e fai il commit.
+3. `./pubblica.sh "Cosa c'è di nuovo, in una riga"`
+
+Lo script compila e prova l'app, crea la Release con lo zip, controlla lo zip online e solo alla fine
+aggiorna `versione.json`. Le copie installate mostrano "Aggiorna alla x.y" in basso a sinistra.
+Repository: https://github.com/sm-bc/regia-mac (pubblico: chiunque può scaricare).
+Sicurezza: chi controlla l'account GitHub può pubblicare aggiornamenti → tieni attiva la verifica in due passaggi.
+
 ## Comandi
 ```bash
-./crea-app.sh              # compila e crea Regia.app qui
+./crea-app.sh              # compila e crea Regia.app qui (Apple Silicon + Intel)
 ./crea-app.sh --installa   # ...e la copia in /Applications
 ./Regia.app/Contents/MacOS/Regia --analisi    # stato del Mac nel Terminale, non cambia niente
 ./Regia.app/Contents/MacOS/Regia --autotest   # prova tutto in un'area finta
@@ -39,4 +49,6 @@ open --env REGIA_PROVA=1 Regia.app            # simulazione su dati finti (per p
 - `Sources/Regia/Manutenzione.swift` — strumenti, latenza, riavvio
 - `Sources/Regia/TempoReale.swift` — dati in tempo reale
 - `Sources/Regia/Stato.swift`, `Viste.swift`, `VisteNuove.swift` — interfaccia
+- `Sources/Regia/Aggiornamenti.swift` — controllo e installazione degli aggiornamenti da GitHub
 - `Sources/Regia/main.swift` — avvio, `--analisi`, `--autotest`
+- `pubblica.sh` — pubblica una versione su GitHub

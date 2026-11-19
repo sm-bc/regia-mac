@@ -142,11 +142,12 @@ enum Residui {
 
     /// Mai toccare: macOS, Apple, Claude, Regia e strumenti di sistema.
     static func escluso(_ id: String) -> Bool {
-        let protetti = ["com.apple.", "com.anthropic", "com.samuele.regia", "com.regia.", "org.cups", "com.openssh",
+        let protetti = ["com.apple.", "com.anthropic", "io.github.sm-bc.regia", "com.regia.", "org.cups", "com.openssh",
                         "org.python", "org.mozilla.updater", "com.microsoft.autoupdate", "com.google.keystone",
                         "com.google.googleupdater", "group.com.apple", "systemgroup.", "org.swift.", "org.llvm.",
                         "com.github.", "org.cocoapods", "org.nodejs", "org.homebrew"]
-        return protetti.contains { id.hasPrefix($0) }
+        // ".regia" = Regia stessa, anche con identificativi di versioni vecchie
+        return protetti.contains { id.hasPrefix($0) } || id.hasSuffix(".regia")
     }
 }
 
