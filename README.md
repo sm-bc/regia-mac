@@ -1,66 +1,58 @@
-# Regia per Mac
+# Regia for Mac
 
-**Italiano** · [English](#english)
+**English** · [Italiano](README.it.md)
 
-Programma gratuito per **macOS 14 o successivo** (Apple Silicon e Intel) che analizza il Mac e lo ottimizza in modo sicuro. È la versione Mac di [Regia per Windows](https://github.com/sm-bc/regia).
+A free app for **macOS 14 or later** (Apple Silicon and Intel) that analyzes your Mac and optimizes it safely. It is the Mac version of [Regia for Windows](https://github.com/sm-bc/regia).
 
-## Cosa fa
-- **Interfaccia in inglese o italiano**: si sceglie in basso a sinistra, nel menu Lingua o in Impostazioni (⌘,).
-- **Panoramica** con dati in tempo reale: processore, memoria, rete, disco, batteria, temperatura. Più consigli con pulsanti per risolvere e l'invito a **riavviare** se il Mac è acceso da diversi giorni.
-- **Suggerimenti**: controlli di sicurezza (FileVault, firewall, Gatekeeper, aggiornamenti automatici, Time Machine), impostazioni da cambiare a mano e buone abitudini.
-- **Profili**: Massimo, Bilanciato, Sicuro. Puoi anche salvare i tuoi profili.
-- **Ritocchi** singoli (37) per velocità, Dock, Finder, efficienza, tastiera, screenshot, energia e privacy.
-- **Aggiornamenti app**: controlla le app dell'App Store, quelle scaricate dai siti degli sviluppatori (Sparkle) e Homebrew.
-- **Pulizia** di cache, log e file di Xcode. I file vanno nel Cestino, quindi si possono recuperare.
-- **Residui** di app cancellate e **App installate** con "Disinstalla e pulisci".
-- **Avvio**: i programmi che partono da soli.
-- **Manutenzione**: disco, batteria, aggiornamenti di macOS, latenza e velocità della rete, cache DNS, Spotlight.
-- **Segnalazioni**: "Segnala" in basso a sinistra prepara una segnalazione o un'idea e apre la pagina di GitHub (invii tu).
+**[⬇ Download the latest version](https://github.com/sm-bc/regia-mac/releases/latest)**
 
-## Perché è sicuro
-- La **Modalità prova** è accesa a ogni apertura: vedi tutto in anteprima, ma non cambia niente.
-- Prima di ogni modifica: anteprima "ora → dopo", conferma e copia delle impostazioni.
-- **Annulla tutto** rimette i valori di prima.
-- Non tocca i file di sistema protetti di macOS. Non invia dati personali: si collega a Internet solo per cercare gli aggiornamenti (di Regia e delle app: catalogo pubblico dell'App Store e siti degli sviluppatori) e quando lanci un test di rete.
+## What it does
+- **English or Italian interface**: switch it at the bottom left of the sidebar, in the Language menu or in Settings (⌘,).
+- **Overview** with live data: processor, memory, network, disk, battery and temperature. Plus tips with one-click fixes and a **restart** reminder when the Mac has been on for several days.
+- **Tips**: security checks (FileVault, firewall, Gatekeeper, automatic updates, Time Machine), settings worth changing by hand and good habits.
+- **Profiles**: Maximum, Balanced and Safe. You can also save your own.
+- **Tweaks**: 37 single settings for speed, Dock, Finder, efficiency, keyboard, screenshots, energy and privacy.
+- **App Updates**: checks App Store apps, apps downloaded from developers' websites (Sparkle) and Homebrew.
+- **Cleanup** of caches, logs and Xcode files. Files go to the Trash, so they can be recovered.
+- **Leftovers** of deleted apps, and **Installed Apps** with "Uninstall and Clean".
+- **Startup**: the programs that launch on their own.
+- **Maintenance**: disk, battery, macOS updates, network latency and speed, DNS cache, Spotlight.
+- **Feedback**: "Feedback" at the bottom left prepares a bug report or an idea and opens the GitHub page (you submit it yourself).
 
-## Installazione
-1. Apri la pagina **[Releases](https://github.com/sm-bc/regia-mac/releases/latest)** e scarica `Regia-Mac_x.y.zip`.
-2. Apri lo zip e trascina **Regia** in **Applicazioni**.
-3. La prima volta macOS dice che non può verificare lo sviluppatore: Regia non è firmata con un certificato Apple a pagamento. Apri **Impostazioni di Sistema › Privacy e sicurezza** e premi **Apri comunque**.
+## Why it's safe
+- **Test mode** is on at every launch: you see everything as a preview, but nothing changes.
+- Before every change: a "now → after" preview, a confirmation and a backup of the settings involved.
+- **Undo All** puts back the previous values.
+- It never touches macOS protected system files. It sends no personal data: it only goes online to check for updates (of Regia and of your apps: the public App Store catalog and developers' websites) and when you run a network test.
 
-## Aggiornamenti
-All'avvio Regia controlla se c'è una versione nuova. Se c'è, compare il pulsante **Aggiorna** in basso a sinistra. Prima di installare chiede conferma e controlla:
-- l'impronta SHA-256 del pacchetto;
-- l'identificativo dell'app;
-- il numero di versione;
-- la firma.
+## Install
+1. Open **[Releases](https://github.com/sm-bc/regia-mac/releases/latest)** and download `Regia-Mac_x.y.zip`.
+2. Open the zip and drag **Regia** to **Applications**.
+3. On first launch macOS says it can't verify the developer, because Regia isn't signed with a paid Apple certificate. Open **System Settings › Privacy & Security** and click **Open Anyway**.
 
-La versione precedente viene salvata in `~/Library/Application Support/Regia/Versioni`.
+## Updates
+At launch Regia checks for a new version. When there is one, an **Update** button appears at the bottom left. Before installing it asks for confirmation and checks:
+- the SHA-256 fingerprint of the package;
+- the app identifier;
+- the version number;
+- the code signature.
 
-## Compilare da soli
+The previous version is kept in `~/Library/Application Support/Regia/Versioni`.
+
+## Report a problem or suggest an idea
+Use **Feedback** inside the app, or open a new [issue](https://github.com/sm-bc/regia-mac/issues).
+
+## Build from source
+Requires Xcode command line tools (Swift 5.9 or later). No external dependencies.
 ```bash
-./crea-app.sh              # crea Regia.app
-./crea-app.sh --installa   # ...e la copia in /Applications
-./Regia.app/Contents/MacOS/Regia --autotest   # prova tutto su dati finti
+./crea-app.sh              # builds Regia.app (Apple Silicon + Intel)
+./crea-app.sh --installa   # ...and copies it to /Applications
+./Regia.app/Contents/MacOS/Regia --autotest   # tests everything on fake data
+./Regia.app/Contents/MacOS/Regia --analisi    # read-only report in Terminal
 ```
 
-## Avvertenze
-Cambiare le impostazioni di sistema comporta sempre un minimo di rischio. Usa la Modalità prova e leggi le anteprime. Il programma è fornito "così com'è", senza garanzie (vedi `LICENSE`).
-
----
-
-<a name="english"></a>
-# Regia for Mac (English)
-
-Free tool for **macOS 14 or later** (Apple Silicon and Intel) that analyzes the Mac and optimizes it safely. It is the Mac version of [Regia for Windows](https://github.com/sm-bc/regia). The interface is in English by default, with Italian selectable at the bottom left of the sidebar.
-
-- **Test mode** is on at every launch. Every change shows a preview first, backs up the original values and can be reverted with **Undo All**.
-- Three profiles (Maximum, Balanced, Safe), 37 single tweaks, cleanup to the Trash, leftovers of deleted apps, uninstaller, startup items, maintenance tools and live system data.
-- **Tips**: security checks (FileVault, firewall, Gatekeeper, automatic updates, Time Machine), settings to change by hand, good habits, and a restart reminder when the Mac has been on for days.
-- **App Updates**: checks App Store apps, apps with a Sparkle update feed and Homebrew; the Update button opens the App Store, the app or Terminal.
-- **Feedback**: prepares a bug report or idea and opens the GitHub "New issue" page (nothing is sent until you submit it).
-- **Install:** download `Regia-Mac_x.y.zip` from [Releases](https://github.com/sm-bc/regia-mac/releases/latest) and drag Regia to Applications. On first launch, go to System Settings › Privacy & Security and click **Open Anyway**: the app is not signed with a paid Apple certificate.
-- **Updates:** an **Update** button appears when a new version is out. The package is checked by SHA-256 fingerprint, bundle identifier, version and code signature before it replaces the app.
+## Disclaimer
+Changing system settings always carries a small risk. Use Test mode and read the previews. The software is provided "as is", without warranty (see `LICENSE`).
 
 ## License
 MIT.

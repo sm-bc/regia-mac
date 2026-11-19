@@ -1,7 +1,7 @@
 #!/bin/zsh
 # ==========================================================================
 #  Pubblica una nuova versione di Regia Mac su GitHub.
-#  Uso:   ./pubblica.sh "Cosa c'è di nuovo, in una riga"
+#  Uso:   ./pubblica.sh "What's new, in one line (in inglese)"
 #  Prima: aumenta il numero nel file VERSIONE (es. 2.1 -> 2.2) e fai il commit.
 #
 #  Cosa fa: compila, lancia l'autotest, crea lo zip, crea la Release su GitHub
@@ -21,7 +21,7 @@ URL="https://github.com/$UTENTE/$REPO/releases/download/v$V/Regia-Mac_$V.zip"
 
 ferma() { echo "STOP: $1"; exit 1; }
 
-[[ -n "$NOTE" ]] || ferma "scrivi le novità tra virgolette: ./pubblica.sh \"...\""
+[[ -n "$NOTE" ]] || ferma "scrivi le novità (in inglese) tra virgolette: ./pubblica.sh \"...\""
 gh auth status >/dev/null 2>&1 || ferma "prima accedi a GitHub con: gh auth login"
 [[ -z "$(git status --porcelain)" ]] || ferma "ci sono modifiche senza commit."
 [[ "$(git config user.name)" == "$UTENTE" ]] || ferma "l'autore dei commit deve essere $UTENTE (git config user.name)."
@@ -30,7 +30,7 @@ gh auth status >/dev/null 2>&1 || ferma "prima accedi a GitHub con: gh auth logi
 if ! git remote get-url origin >/dev/null 2>&1; then
   echo "== Creo il repository pubblico $UTENTE/$REPO"
   gh repo create "$UTENTE/$REPO" --public --source . --remote origin \
-    --description "Regia per Mac: analisi e ottimizzazione sicura di macOS, con anteprima, Modalità prova e Annulla tutto."
+    --description "Regia for Mac: analyze and safely optimize macOS, with previews, Test mode and Undo All."
 fi
 
 if git ls-remote --tags origin "refs/tags/v$V" | grep -q .; then ferma "la versione $V è già pubblicata: aumenta il numero in VERSIONE."; fi
@@ -54,16 +54,8 @@ echo "SHA-256: $SHA"
 
 echo "== 3/5 Carico il codice e creo la Release v$V"
 git push -u origin main
-gh release create "v$V" "$ZIP" --repo "$UTENTE/$REPO" --target main --title "Regia Mac $V" --notes "$NOTE
-
-**Installazione (la prima volta)**
-1. Scarica \`Regia-Mac_$V.zip\` qui sotto e aprilo: compare **Regia**.
-2. Trascina Regia nella cartella **Applicazioni**.
-3. Apri Regia. macOS dice che non può verificare lo sviluppatore (Regia non è firmata con un certificato Apple a pagamento): apri **Impostazioni di Sistema › Privacy e sicurezza** e premi **Apri comunque**.
-
-Poi si aggiorna da sola: quando esce una versione nuova compare il pulsante **Aggiorna** in basso a sinistra.
-
-SHA-256: \`$SHA\`"
+gh release create "v$V" "$ZIP" --repo "$UTENTE/$REPO" --target main --title "Regia for Mac $V" \
+  --notes "$(strumenti/note-release.sh "$NOTE" "$V" "$SHA")"
 
 echo "== 4/5 Controllo lo zip online"
 sleep 3

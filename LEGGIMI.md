@@ -29,7 +29,8 @@ App per ottimizzare il Mac, sorella di Regia per Windows. SwiftUI, nessuna dipen
 ## Pubblicare una versione nuova su GitHub
 1. Fai le modifiche e prova con `./Regia.app/Contents/MacOS/Regia --autotest`.
 2. Aumenta il numero nel file `VERSIONE` (es. 2.1 → 2.2) e fai il commit.
-3. `./pubblica.sh "Cosa c'è di nuovo, in una riga"`
+3. `./pubblica.sh "What's new, in one line"` — le novità **in inglese**: la pagina GitHub è in inglese
+   (README.md in inglese, README.it.md in italiano; testo delle Release in `strumenti/note-release.sh`).
 
 Lo script compila e prova l'app, crea la Release con lo zip, controlla lo zip online e solo alla fine
 aggiorna `versione.json`. Le copie installate mostrano "Aggiorna alla x.y" in basso a sinistra.
