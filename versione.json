@@ -1,6 +1,6 @@
 {
-  "versione": "2.2",
-  "url": "https://github.com/sm-bc/regia-mac/releases/download/v2.2/Regia-Mac_2.2.zip",
-  "sha256": "e91ecab878e4dffff3720f406f4db85b38ef640751e9d15ae2a57c66a9359874",
-  "note": "English interface (Italian selectable), Tips with security checks, restart reminder, App Updates, Feedback, 3 profiles, 8 new tweaks, refreshed design. / Interfaccia in inglese (italiano selezionabile), Suggerimenti, riavvio consigliato, Aggiornamenti app, Segnala, 3 profili, 8 ritocchi nuovi, grafica rinnovata."
+  "versione": "2.3",
+  "url": "https://github.com/sm-bc/regia-mac/releases/download/v2.3/Regia-Mac_2.3.zip",
+  "sha256": "1d4c05eef388b856e818c7a8774c64f38554947d916e6928eb64780a5491ac09",
+  "note": "Fix: Installed Apps no longer shifts the window / Correzione: App installate non sposta più la finestra"
 }
