@@ -1,6 +1,6 @@
 {
-  "versione": "2.3",
-  "url": "https://github.com/sm-bc/regia-mac/releases/download/v2.3/Regia-Mac_2.3.zip",
-  "sha256": "1d4c05eef388b856e818c7a8774c64f38554947d916e6928eb64780a5491ac09",
-  "note": "Fix: Installed Apps no longer shifts the window / Correzione: App installate non sposta più la finestra"
+  "versione": "2.4",
+  "url": "https://github.com/sm-bc/regia-mac/releases/download/v2.4/Regia-Mac_2.4.zip",
+  "sha256": "fa78d09ff8a186b78f95453bb53c104fcdb9bb3983670df9cef5a55c1cb1d063",
+  "note": "Fix: the Good habits list in Tips is now aligned correctly."
 }
