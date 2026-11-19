@@ -2,7 +2,7 @@
 
 App per ottimizzare il Mac, sorella di Regia per Windows. SwiftUI, nessuna dipendenza esterna.
 
-## Cosa fa (versione 2.3)
+## Cosa fa (versione 2.4)
 - **Lingua**: inglese di serie, italiano selezionabile (barra laterale in basso, menu Lingua, Impostazioni ⌘,). Testi nel codice con `L("inglese", "italiano")`.
 - **Modalità prova** (interruttore in basso a sinistra, accesa a ogni apertura): mostra cosa farebbe, non cambia niente.
 - **Panoramica**: dati in tempo reale (processore, memoria, rete, disco, batteria e consumo, stato termico), disco, batteria, consigli.
